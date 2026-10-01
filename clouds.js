@@ -75,8 +75,8 @@ function makeToy(index, envMap) {
     group.add(spool);
   }
 
-  // Fill the facing face; keep Z short so they stay inside the case.
-  group.scale.set(1.42, 1.22, 0.78);
+  // Fill the facing face; keep Z short so they stay inside the thicker case.
+  group.scale.set(1.28, 1.12, 0.52);
   return group;
 }
 
@@ -245,8 +245,8 @@ function initCloudField(section) {
 
   const BOX_W = 4.35;
   const BOX_H = 1.85;
-  const BOX_D = 0.82;
-  const geometry = new RoundedBoxGeometry(BOX_W, BOX_H, BOX_D, 8, 0.38);
+  const BOX_D = isToys ? 1.58 : 0.82;
+  const geometry = new RoundedBoxGeometry(BOX_W, BOX_H, BOX_D, 8, isToys ? 0.42 : 0.38);
 
   // Largest face (16×8) square to the camera — no yaw or pitch.
   const BASE_ROT_Y = 0;
@@ -334,6 +334,7 @@ function initCloudField(section) {
         toy: null,
         toySpinX: 0,
         toySpinY: 0,
+        toySpinZ: 0,
       };
 
       if (isToys) {
@@ -341,8 +342,9 @@ function initCloudField(section) {
         toy.renderOrder = 0;
         mesh.add(toy);
         mesh.userData.toy = toy;
-        mesh.userData.toySpinX = 0.35 + Math.random() * 0.45;
-        mesh.userData.toySpinY = 0.55 + Math.random() * 0.7;
+        mesh.userData.toySpinX = 0.08 + Math.random() * 0.1;
+        mesh.userData.toySpinY = 0.1 + Math.random() * 0.12;
+        mesh.userData.toySpinZ = 0.55 + Math.random() * 0.7;
       }
 
       scene.add(mesh);
@@ -408,6 +410,7 @@ function initCloudField(section) {
       if (u.toy) {
         u.toy.rotation.x += dt * u.toySpinX;
         u.toy.rotation.y += dt * u.toySpinY;
+        u.toy.rotation.z += dt * u.toySpinZ;
       }
     }
 
