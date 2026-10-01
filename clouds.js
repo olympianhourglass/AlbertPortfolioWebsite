@@ -110,27 +110,27 @@ function initCloudField(section) {
       envMapIntensity: 1.55,
       envGain: 1,
     },
-    // Brighter than keep. Env intensity is the bloom lever — 2.55
-    // let cream neighbors cascade into a white flash.
+    // Midway: luminous cream/steel/chartreuse, not the 2.55 white flash
+    // and not the 1.7 muted metal.
     play: {
-      exposure: 1.18,
-      ambient: { color: 0xd4d8dc, intensity: 0.24 },
-      key: { color: 0xf0dcc8, intensity: 1.1, pos: [-7, 3.4, 2.5] },
-      cool: { color: 0x84b0c6, intensity: 1.48, pos: [8.5, 1.2, 2] },
-      blush: { color: 0xf4c0d4, intensity: 0.95, pos: [-3.5, -5.5, 2.4] },
-      fill: { color: 0xf2ece0, intensity: 0.38, pos: [0, 9.2, 1.4] },
+      exposure: 1.22,
+      ambient: { color: 0xd8dce0, intensity: 0.26 },
+      key: { color: 0xf2dcc8, intensity: 1.16, pos: [-7, 3.4, 2.55] },
+      cool: { color: 0x8cb4cc, intensity: 1.55, pos: [8.4, 1.25, 2.05] },
+      blush: { color: 0xffc4d6, intensity: 1.05, pos: [-3.4, -5.4, 2.45] },
+      fill: { color: 0xf4eee0, intensity: 0.42, pos: [0, 9.2, 1.45] },
       palettes: [
-        { color: 0xe2d4c2, thickBase: 260, thickSpan: 420 },
-        { color: 0x88a8bc, thickBase: 70, thickSpan: 320 },
-        { color: 0xdbd4a6, thickBase: 320, thickSpan: 400 },
+        { color: 0xe6d8c6, thickBase: 260, thickSpan: 440 },
+        { color: 0x8aacc0, thickBase: 70, thickSpan: 330 },
+        { color: 0xe2daac, thickBase: 320, thickSpan: 400 },
       ],
-      metalness: 0.9,
-      roughness: 0.07,
-      iridescenceIOR: 1.4,
-      clearcoat: 0.85,
-      clearcoatRoughness: 0.06,
-      envMapIntensity: 1.7,
-      envGain: 1.12,
+      metalness: 0.91,
+      roughness: 0.055,
+      iridescenceIOR: 1.41,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.05,
+      envMapIntensity: 2.12,
+      envGain: 1.22,
     },
     toys: {
       exposure: 1.26,
@@ -200,6 +200,12 @@ function initCloudField(section) {
       { x: 0.5, y: 0.82, r: 0.28, col: `rgba(255,150,205,${0.85 * gain})` },
       { x: 0.28, y: 0.7, r: 0.2, col: `rgba(241,237,225,${0.9 * gain})` },
     ];
+    if (isPlay) {
+      blobs.push(
+        { x: 0.12, y: 0.55, r: 0.2, col: "rgba(130,190,230,0.58)" },
+        { x: 0.78, y: 0.72, r: 0.22, col: "rgba(255,120,190,0.52)" }
+      );
+    }
     if (isToys) {
       blobs.push(
         { x: 0.12, y: 0.55, r: 0.22, col: "rgba(130,190,230,0.95)" },
