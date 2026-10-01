@@ -7,10 +7,9 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
-const canvas = document.getElementById("cloudCanvas");
-const section = document.getElementById("showcase");
-
-if (canvas && section) {
+function initCloudField(section) {
+  const canvas = section.querySelector(".cloud-canvas");
+  if (!canvas) return;
   const reduceMotion = window.matchMedia(
     "(prefers-reduced-motion: reduce)"
   ).matches;
@@ -357,3 +356,5 @@ if (canvas && section) {
     loop();
   }
 }
+
+document.querySelectorAll(".showcase").forEach(initCloudField);

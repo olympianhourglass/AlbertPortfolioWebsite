@@ -94,12 +94,21 @@
     </section>
 
     <!-- Showcase: animated gradient clouds -->
-    <section id="showcase" class="showcase">
+    <section id="showcase" class="showcase" data-clouds="keep">
       <div class="showcase-inner">
         <h2 class="section-title showcase-title">Gradient Clouds</h2>
         <p class="showcase-sub">A material study — iridescent slabs drifting through the void, colored from the Figma frames.</p>
       </div>
-      <canvas class="cloud-canvas" id="cloudCanvas" aria-hidden="true"></canvas>
+      <canvas class="cloud-canvas" aria-hidden="true"></canvas>
+    </section>
+
+    <!-- Duplicate to play with — keep the one above as the reference -->
+    <section id="showcase-play" class="showcase" data-clouds="play">
+      <div class="showcase-inner">
+        <h2 class="section-title showcase-title">Gradient Clouds</h2>
+        <p class="showcase-sub">A material study — iridescent slabs drifting through the void, colored from the Figma frames.</p>
+      </div>
+      <canvas class="cloud-canvas" aria-hidden="true"></canvas>
     </section>
 
     <!-- Contact -->
@@ -130,6 +139,6 @@
       }
     }
   </script>
-  <script type="module" src="clouds.js?v=26"></script>
+  <script type="module" src="clouds.js?v=27"></script>
 </body>
 </html>
