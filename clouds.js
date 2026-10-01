@@ -117,7 +117,7 @@ if (canvas && section) {
   const BOX_W = 3.7;
   const BOX_H = 1.85;
   const BOX_D = 0.62;
-  const geometry = new RoundedBoxGeometry(BOX_W, BOX_H, BOX_D, 6, 0.12);
+  const geometry = new RoundedBoxGeometry(BOX_W, BOX_H, BOX_D, 8, 0.26);
 
   // Largest face (16×8) square to the camera — no yaw or pitch.
   const BASE_ROT_Y = 0;
