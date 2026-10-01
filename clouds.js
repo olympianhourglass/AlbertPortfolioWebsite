@@ -19,6 +19,7 @@ if (canvas && section) {
     canvas,
     antialias: true,
     alpha: true,
+    preserveDrawingBuffer: true,
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000, 0);
@@ -286,12 +287,65 @@ if (canvas && section) {
     }
 
     renderer.render(scene, camera);
+    updateTextContrast();
+  }
+
+  const titleEl = section.querySelector(".showcase-title");
+  const subEl = section.querySelector(".showcase-sub");
+  const samplePixel = new Uint8Array(4);
+  const dbSize = new THREE.Vector2();
+
+  function sampleCoverage(el) {
+    if (!el) return { covered: 0, lum: 0 };
+    const er = el.getBoundingClientRect();
+    const cr = canvas.getBoundingClientRect();
+    renderer.getDrawingBufferSize(dbSize);
+    const gl = renderer.getContext();
+    const cols = 8;
+    const rows = 3;
+    let opaque = 0;
+    let lumSum = 0;
+    let n = 0;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const cx = er.left + (er.width * (col + 0.5)) / cols;
+        const cy = er.top + (er.height * (row + 0.5)) / rows;
+        if (cx < cr.left || cy < cr.top || cx > cr.right || cy > cr.bottom) {
+          continue;
+        }
+        const px = Math.floor(((cx - cr.left) / cr.width) * dbSize.x);
+        const py = Math.floor((1 - (cy - cr.top) / cr.height) * dbSize.y);
+        gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, samplePixel);
+        n += 1;
+        if (samplePixel[3] > 28) {
+          opaque += 1;
+          lumSum +=
+            (0.2126 * samplePixel[0] +
+              0.7152 * samplePixel[1] +
+              0.0722 * samplePixel[2]) /
+            255;
+        }
+      }
+    }
+    return {
+      covered: n ? opaque / n : 0,
+      lum: opaque ? lumSum / opaque : 0,
+    };
+  }
+
+  function updateTextContrast() {
+    for (const el of [titleEl, subEl]) {
+      if (!el) continue;
+      const { covered, lum } = sampleCoverage(el);
+      el.classList.toggle("on-cloud", covered > 0.16 && lum > 0.45);
+    }
   }
 
   if (reduceMotion) {
     for (const m of panels) updateReflection(m);
     resize();
     renderer.render(scene, camera);
+    updateTextContrast();
   } else {
     let running = true;
     const io = new IntersectionObserver(

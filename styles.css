@@ -371,17 +371,24 @@ body {
   font-weight: 500;
   letter-spacing: 0;
   text-transform: uppercase;
-  color: #3d5a80;
+  color: #fff;
   margin-bottom: 0.75rem;
+  transition: color 0.16s ease;
 }
 
 .showcase-sub {
   font-family: "Neue Haas Display", system-ui, sans-serif;
   font-weight: 500;
   letter-spacing: 0;
-  color: #3d5a80;
+  color: #fff;
   max-width: 36rem;
   margin: 0 auto;
+  transition: color 0.16s ease;
+}
+
+.showcase-title.on-cloud,
+.showcase-sub.on-cloud {
+  color: #3d5a80;
 }
 
 .cloud-canvas {
