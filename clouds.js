@@ -128,10 +128,10 @@ if (canvas && section) {
   const SPREAD_X = 13;
   const WRAP_LIMIT = SPREAD_X + 2.5;
   const WRAP_SPAN = WRAP_LIMIT * 2;
-  const GAP = 0.7;
+  const GAP = 0.55;
   const lanes = [
-    { y: 0.95, count: 6, speed: 0.3, phase: 0.0 },
-    { y: 3.2, count: 6, speed: -0.26, phase: 0.5 },
+    { y: 0.85, count: 6, speed: 0.38, phase: 0.0 },
+    { y: 3.45, count: 6, speed: -0.34, phase: 0.5 },
   ];
 
   const palettes = [
@@ -233,15 +233,18 @@ if (canvas && section) {
   let reflectIndex = 0;
 
   function updateReflection(mesh) {
-    const u = mesh.userData;
-    mesh.visible = false;
-    u.cubeCam.position.copy(mesh.position);
-    u.cubeCam.update(renderer, scene);
-    mesh.visible = true;
-    if (u.pmremRT) u.pmremRT.dispose();
-    u.pmremRT = pmrem.fromCubemap(u.cubeRT.texture);
-    mesh.material.envMap = u.pmremRT.texture;
-    mesh.material.needsUpdate = true;
+    try {
+      const u = mesh.userData;
+      mesh.visible = false;
+      u.cubeCam.position.copy(mesh.position);
+      u.cubeCam.update(renderer, scene);
+      mesh.visible = true;
+      if (u.pmremRT) u.pmremRT.dispose();
+      u.pmremRT = pmrem.fromCubemap(u.cubeRT.texture);
+      mesh.material.envMap = u.pmremRT.texture;
+    } catch {
+      mesh.visible = true;
+    }
   }
 
   function renderFrame() {
@@ -254,33 +257,27 @@ if (canvas && section) {
       m.material.iridescenceThicknessRange = [th, th + 340];
     }
 
-    // Hard separation — if any pair's padded boxes overlap (including
-    // across the wrap seam), nudge them apart on X only.
+    // Same-lane only. Cross-lane pairs are already separated in Y;
+    // do not rewrite baseX or the drift gets cancelled every frame.
     for (let i = 0; i < panels.length; i++) {
       for (let j = i + 1; j < panels.length; j++) {
         const a = panels[i];
         const b = panels[j];
         const au = a.userData;
         const bu = b.userData;
+        if (Math.abs(a.position.y - b.position.y) > 0.01) continue;
         let dx = a.position.x - b.position.x;
         if (dx > WRAP_LIMIT) dx -= WRAP_SPAN;
         if (dx < -WRAP_LIMIT) dx += WRAP_SPAN;
-        const dy = a.position.y - b.position.y;
         const minX = au.hx + bu.hx + GAP;
-        const minY = au.hy + bu.hy + GAP;
-        if (Math.abs(dx) >= minX || Math.abs(dy) >= minY) continue;
-        const overlapX = minX - Math.abs(dx);
-        const push = (overlapX / 2) * Math.sign(dx || 1);
+        if (Math.abs(dx) >= minX) continue;
+        const push = ((minX - Math.abs(dx)) / 2) * Math.sign(dx || 1);
         a.position.x = wrap(a.position.x + push, WRAP_LIMIT);
         b.position.x = wrap(b.position.x - push, WRAP_LIMIT);
-        au.baseX = wrap(au.baseX + push, WRAP_LIMIT);
-        bu.baseX = wrap(bu.baseX - push, WRAP_LIMIT);
       }
     }
 
-    // Refresh a couple of local cube maps each frame so neighbors stay
-    // visible in the metal without 9 extra scene renders every tick.
-    const updates = reduceMotion ? 0 : 2;
+    const updates = reduceMotion ? 0 : 1;
     for (let i = 0; i < updates; i++) {
       updateReflection(panels[reflectIndex % panels.length]);
       reflectIndex += 1;
@@ -289,19 +286,17 @@ if (canvas && section) {
     renderer.render(scene, camera);
   }
 
-  // Seed reflections once so the first frame isn't dull.
-  for (const m of panels) updateReflection(m);
-
   if (reduceMotion) {
+    for (const m of panels) updateReflection(m);
     resize();
     renderer.render(scene, camera);
   } else {
     let running = true;
     const io = new IntersectionObserver(
       (entries) => {
-        running = entries[0].isIntersecting;
+        running = entries[0]?.isIntersecting ?? true;
       },
-      { threshold: 0.01 }
+      { threshold: 0 }
     );
     io.observe(section);
 
