@@ -176,12 +176,11 @@ if (canvas && section) {
 
     for (const m of panels) {
       const u = m.userData;
-      // Drift horizontally and wrap, like slow clouds.
+      // Drift horizontally only (left/right) and wrap, like slow clouds.
+      // No vertical bob and no forward/back motion.
       m.position.x = wrap(u.baseX + t * u.speed, SPREAD_X + 2);
-      m.position.y = u.baseY + Math.sin(t * u.bobSpeed + u.phase) * u.bobAmp;
-      // Gentle shared sway keeps them parallel while adding life.
-      m.rotation.y = BASE_ROT_Y + Math.sin(t * 0.1) * 0.04;
-      // Subtle iridescent film-thickness breathing for a shifting sheen.
+      // Subtle iridescent film-thickness breathing for a shifting sheen
+      // (a material effect, not spatial movement).
       const th = u.thickBase + Math.sin(t * 0.5 + u.phase) * 90;
       m.material.iridescenceThicknessRange = [th, th + 340];
     }
