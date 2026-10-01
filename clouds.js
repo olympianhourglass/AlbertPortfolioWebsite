@@ -22,7 +22,7 @@ if (canvas && section) {
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.3;
+  renderer.toneMappingExposure = 1.4;
 
   const scene = new THREE.Scene();
 
@@ -92,9 +92,9 @@ if (canvas && section) {
   rimLight.position.set(-6, -2, 4);
   scene.add(rimLight);
 
-  // --- Panels: rounded boxes with a 16 x 8 x 2 ratio (8:4:1).
-  // The wide 16 x 8 face is the one that faces the viewer.
-  const geometry = new RoundedBoxGeometry(3.2, 1.6, 0.4, 6, 0.1);
+  // --- Panels: rounded boxes, wide 16 x 8 face toward the viewer,
+  // with a chunkier depth so the slabs read thicker.
+  const geometry = new RoundedBoxGeometry(3.2, 1.6, 0.62, 6, 0.12);
 
   // Shared orientation => all panels stay parallel in 3D space.
   // Mostly face-on so the big 16x8 face reads large, with a modest angle
@@ -110,13 +110,13 @@ if (canvas && section) {
     const material = new THREE.MeshPhysicalMaterial({
       color: new THREE.Color(0x9aa6b2),
       metalness: 1.0,
-      roughness: 0.13,
+      roughness: 0.05,
       iridescence: 1.0,
       iridescenceIOR: 1.4,
       iridescenceThicknessRange: [120, 500],
       clearcoat: 1.0,
-      clearcoatRoughness: 0.1,
-      envMapIntensity: 1.85,
+      clearcoatRoughness: 0.04,
+      envMapIntensity: 2.4,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
