@@ -369,7 +369,7 @@ body {
 .showcase-title {
   font-family: "Roc Grotesk Wide", "Neue Haas Display", sans-serif;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: #3d5a80;
   margin-bottom: 0.75rem;
