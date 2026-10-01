@@ -114,8 +114,8 @@ if (canvas && section) {
   pinkFill.position.set(3, -3, 4);
   scene.add(pinkFill);
 
-  const BOX_W = 3.2;
-  const BOX_H = 1.6;
+  const BOX_W = 3.7;
+  const BOX_H = 1.85;
   const BOX_D = 0.62;
   const geometry = new RoundedBoxGeometry(BOX_W, BOX_H, BOX_D, 6, 0.12);
 
@@ -123,17 +123,15 @@ if (canvas && section) {
   const BASE_ROT_Y = 0;
   const BASE_ROT_X = 0;
 
-  // One shared Z-plane so perspective can't make a nearer slab slide
-  // "through" a farther one. Three Y-lanes with enough gap, same speed
-  // inside each lane, so they never catch or clip each other.
-  const SPREAD_X = 12;
+  // One shared Z-plane. Lanes sit in the upper half of the frame
+  // with enough gap and shared speed so they never clip each other.
+  const SPREAD_X = 13;
   const WRAP_LIMIT = SPREAD_X + 2.5;
   const WRAP_SPAN = WRAP_LIMIT * 2;
-  const GAP = 1.15;
+  const GAP = 0.7;
   const lanes = [
-    { y: -2.85, count: 3, speed: 0.32, phase: 0.0 },
-    { y: 0.0, count: 3, speed: -0.26, phase: 0.33 },
-    { y: 2.85, count: 3, speed: 0.3, phase: 0.66 },
+    { y: 0.95, count: 6, speed: 0.3, phase: 0.0 },
+    { y: 3.2, count: 6, speed: -0.26, phase: 0.5 },
   ];
 
   const palettes = [
@@ -191,7 +189,7 @@ if (canvas && section) {
       mesh.rotation.y = BASE_ROT_Y;
       mesh.rotation.x = BASE_ROT_X;
 
-      const s = 0.74;
+      const s = 0.9;
       mesh.scale.setScalar(s);
 
       const slot = (j + lane.phase) / lane.count;
