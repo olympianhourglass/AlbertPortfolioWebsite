@@ -99,9 +99,9 @@
     <section id="showcase" class="showcase">
       <div class="showcase-inner">
         <h2 class="section-title showcase-title">Gradient Clouds</h2>
-        <p class="showcase-sub">Shiny 3D slabs drifting across the void — colors pulled straight from Figma.</p>
+        <p class="showcase-sub">Parallel iridescent panels drifting edge-on through the void — metal tinted by the Figma palettes.</p>
       </div>
-      <div class="cloud-canvas" id="cloudCanvas" aria-hidden="true"></div>
+      <canvas class="cloud-canvas" id="cloudCanvas" aria-hidden="true"></canvas>
     </section>
 
     <!-- Contact -->
@@ -124,5 +124,14 @@
   </footer>
 
   <script src="script.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="clouds.js?v=3"></script>
 </body>
 </html>
