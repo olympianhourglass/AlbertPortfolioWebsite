@@ -122,7 +122,7 @@ if (canvas && section) {
   const BASE_ROT_X = THREE.MathUtils.degToRad(-10);
 
   // One shared Z-plane so perspective can't make a nearer slab slide
-  // "through" a farther one. Two Y-lanes with a wide gap, same speed
+  // "through" a farther one. Three Y-lanes with enough gap, same speed
   // inside each lane, so they never catch or clip each other.
   const SPREAD_X = 12;
   const WRAP_LIMIT = SPREAD_X + 2.5;
@@ -130,7 +130,8 @@ if (canvas && section) {
   const GAP = 1.15;
   const lanes = [
     { y: -2.85, count: 3, speed: 0.32, phase: 0.0 },
-    { y: 2.85, count: 3, speed: -0.28, phase: 0.5 },
+    { y: 0.0, count: 3, speed: -0.26, phase: 0.33 },
+    { y: 2.85, count: 3, speed: 0.3, phase: 0.66 },
   ];
 
   const palettes = [
