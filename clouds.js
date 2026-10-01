@@ -237,6 +237,7 @@ if (canvas && section) {
   };
 
   const clock = new THREE.Clock();
+  let lastTime = 0;
   let reflectIndex = 0;
 
   function updateReflection(mesh) {
@@ -256,14 +257,14 @@ if (canvas && section) {
 
   function renderFrame() {
     const t = clock.getElapsedTime();
-
-    const dt = clock.getDelta();
+    const dt = Math.min(0.05, Math.max(0, t - lastTime));
+    lastTime = t;
 
     for (const m of panels) {
       const u = m.userData;
       m.position.x = wrap(u.baseX + t * u.speed, WRAP_LIMIT);
       u.wobbleT += dt;
-      const damp = Math.exp(-u.wobbleT * 2.6);
+      const damp = Math.exp(-u.wobbleT * 1.35);
       m.rotation.x =
         BASE_ROT_X + u.wobbleAmpX * Math.sin(u.wobbleT * u.wobbleFreq) * damp;
       m.rotation.y =
@@ -309,26 +310,30 @@ if (canvas && section) {
   const clickPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const clickHit = new THREE.Vector3();
 
-  section.addEventListener("click", (event) => {
-    if (reduceMotion) return;
+  function pulseWobble(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    clickPtr.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    clickPtr.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    clickPtr.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    clickPtr.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     clickRay.setFromCamera(clickPtr, camera);
-    if (!clickRay.ray.intersectPlane(clickPlane, clickHit)) return;
+    const hit = clickRay.ray.intersectPlane(clickPlane, clickHit);
 
     for (const m of panels) {
-      const dx = m.position.x - clickHit.x;
-      const dy = m.position.y - clickHit.y;
-      const falloff = Math.min(1.35, 2.4 / (Math.hypot(dx, dy) + 0.4));
       const u = m.userData;
+      const dx = hit ? m.position.x - clickHit.x : clickPtr.x * 8;
+      const dy = hit ? m.position.y - clickHit.y : clickPtr.y * 5;
+      const falloff = Math.min(1.5, 3.2 / (Math.hypot(dx, dy) + 0.35));
       u.wobbleT = 0;
-      u.wobbleAmpX = THREE.MathUtils.degToRad(8 + 16 * falloff) * Math.sign(dy || 1);
-      u.wobbleAmpY = THREE.MathUtils.degToRad(10 + 18 * falloff) * Math.sign(dx || 1);
-      u.wobbleAmpZ = THREE.MathUtils.degToRad(5 + 8 * falloff) * (dx >= 0 ? 1 : -1);
-      u.wobbleFreq = 6.5 + Math.random() * 3.5;
+      u.wobbleAmpX = THREE.MathUtils.degToRad(16 + 22 * falloff) * Math.sign(dy || 1);
+      u.wobbleAmpY = THREE.MathUtils.degToRad(20 + 26 * falloff) * Math.sign(dx || 1);
+      u.wobbleAmpZ = THREE.MathUtils.degToRad(10 + 12 * falloff) * (dx >= 0 ? 1 : -1);
+      u.wobbleFreq = 4.2 + Math.random() * 2.2;
     }
+  }
+
+  section.addEventListener("pointerdown", (event) => {
+    if (reduceMotion || event.button !== 0) return;
+    pulseWobble(event.clientX, event.clientY);
   });
 
   if (reduceMotion) {
