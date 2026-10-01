@@ -118,8 +118,9 @@ if (canvas && section) {
   const BOX_D = 0.62;
   const geometry = new RoundedBoxGeometry(BOX_W, BOX_H, BOX_D, 6, 0.12);
 
-  const BASE_ROT_Y = THREE.MathUtils.degToRad(22);
-  const BASE_ROT_X = THREE.MathUtils.degToRad(-10);
+  // Largest face (16×8) square to the camera — no yaw or pitch.
+  const BASE_ROT_Y = 0;
+  const BASE_ROT_X = 0;
 
   // One shared Z-plane so perspective can't make a nearer slab slide
   // "through" a farther one. Three Y-lanes with enough gap, same speed
@@ -198,8 +199,8 @@ if (canvas && section) {
 
       mesh.userData = {
         baseX,
-        hx: 1.72 * s,
-        hy: 0.92 * s,
+        hx: (BOX_W / 2) * s,
+        hy: (BOX_H / 2) * s,
         speed: lane.speed,
         phase: Math.random() * Math.PI * 2,
         thickBase: pal.thickBase,
