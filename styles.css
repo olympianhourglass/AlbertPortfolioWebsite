@@ -252,6 +252,165 @@ body {
   color: var(--accent-hover);
 }
 
+/* Showcase: animated gradient clouds on black canvas */
+.showcase {
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  min-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+}
+
+.showcase-inner {
+  position: relative;
+  z-index: 3;
+  text-align: center;
+  padding: 4rem 1.5rem 0;
+  pointer-events: none;
+}
+
+.showcase-title {
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.showcase-sub {
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 34rem;
+  margin: 0 auto;
+}
+
+.cloud-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  perspective: 1400px;
+  perspective-origin: 50% 42%;
+  /* faint central glow so the void isn't pure flat black */
+  background: radial-gradient(
+    120% 90% at 50% 55%,
+    rgba(40, 44, 60, 0.45) 0%,
+    rgba(0, 0, 0, 0) 60%
+  );
+}
+
+.cloud-slab {
+  position: absolute;
+  left: 0;
+  border-radius: 26px;
+  background: var(--bg);
+  background-size: 180% 180%;
+  background-position: 30% 40%;
+  filter: blur(var(--blur, 0px));
+  opacity: var(--opacity, 1);
+  transform-style: preserve-3d;
+  will-change: transform;
+  overflow: hidden;
+  transform: translate3d(0, 0, 0) rotateX(var(--tiltX, 52deg))
+    rotateZ(var(--rotZ, 0deg)) scale(var(--scale, 1));
+  box-shadow:
+    /* top gloss line */ inset 0 2px 1px rgba(255, 255, 255, 0.8),
+    /* bottom inner shade */ inset 0 -14px 24px rgba(0, 0, 0, 0.22),
+    /* extruded edge to fake thickness */ 0 6px 0 rgba(0, 0, 0, 0.28),
+    0 16px 1px -2px rgba(0, 0, 0, 0.32),
+    /* colored ambient glow */ 0 44px 80px -10px var(--glow, rgba(255, 255, 255, 0.4));
+}
+
+/* Glossy diagonal highlight for the "shiny" look */
+.cloud-slab::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.08) 34%,
+    rgba(255, 255, 255, 0) 55%
+  );
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+/* Moving specular sweep */
+.cloud-slab::after {
+  content: "";
+  position: absolute;
+  top: -60%;
+  left: -70%;
+  width: 55%;
+  height: 220%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.7) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: rotate(18deg);
+  animation: sheen 8s ease-in-out infinite;
+  animation-delay: var(--sheenDelay, 0s);
+  pointer-events: none;
+}
+
+@keyframes sheen {
+  0%,
+  38% {
+    left: -70%;
+    opacity: 0;
+  }
+  42% {
+    opacity: 0.9;
+  }
+  52% {
+    left: 130%;
+    opacity: 0.5;
+  }
+  58%,
+  100% {
+    opacity: 0;
+    left: 130%;
+  }
+}
+
+/* Cloud drift paths — tilt/rotation baked in so they survive the animation */
+@keyframes driftR {
+  from {
+    transform: translate3d(-34vw, 0, 0) rotateX(var(--tiltX)) rotateZ(var(--rotZ))
+      scale(var(--scale));
+  }
+  50% {
+    transform: translate3d(48vw, -26px, 0) rotateX(var(--tiltX))
+      rotateZ(var(--rotZ)) scale(var(--scale));
+  }
+  to {
+    transform: translate3d(132vw, 0, 0) rotateX(var(--tiltX)) rotateZ(var(--rotZ))
+      scale(var(--scale));
+  }
+}
+
+@keyframes driftL {
+  from {
+    transform: translate3d(132vw, 0, 0) rotateX(var(--tiltX)) rotateZ(var(--rotZ))
+      scale(var(--scale));
+  }
+  50% {
+    transform: translate3d(48vw, 24px, 0) rotateX(var(--tiltX)) rotateZ(var(--rotZ))
+      scale(var(--scale));
+  }
+  to {
+    transform: translate3d(-34vw, 0, 0) rotateX(var(--tiltX)) rotateZ(var(--rotZ))
+      scale(var(--scale));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-slab,
+  .cloud-slab::after {
+    animation: none !important;
+  }
+}
+
 /* Contact */
 .contact-text {
   color: var(--text-muted);
