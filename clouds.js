@@ -88,51 +88,72 @@ function initCloudField(section) {
   ).matches;
   const isPlay = section.dataset.clouds === "play";
   const isToys = section.dataset.clouds === "toys";
-  const brightLook = isPlay || isToys;
 
-  // Play sits between the current muted keep look and the earlier
-  // blown-out cream lighting — brighter iridescence, still colored.
-  const look = brightLook
-    ? {
-        exposure: 1.26,
-        ambient: { color: 0xd8dce0, intensity: 0.28 },
-        key: { color: 0xf2dcc8, intensity: 1.2, pos: [-7, 3.4, 2.6] },
-        cool: { color: 0x8cb4cc, intensity: 1.65, pos: [8.4, 1.3, 2.1] },
-        blush: { color: 0xffc0d8, intensity: 1.15, pos: [-3.4, -5.4, 2.5] },
-        fill: { color: 0xf4eee0, intensity: 0.48, pos: [0, 9.2, 1.5] },
-        palettes: [
-          { color: 0xe4d6c4, thickBase: 260, thickSpan: 480 },
-          { color: 0x88a8bc, thickBase: 70, thickSpan: 340 },
-          { color: 0xe0d8a8, thickBase: 320, thickSpan: 420 },
-        ],
-        metalness: 0.94,
-        roughness: 0.045,
-        iridescenceIOR: 1.42,
-        clearcoat: 0.95,
-        clearcoatRoughness: 0.04,
-        envMapIntensity: 2.55,
-        envGain: 1.35,
-      }
-    : {
-        exposure: 1.12,
-        ambient: { color: 0xb8c0c8, intensity: 0.18 },
-        key: { color: 0xe8d8c8, intensity: 0.85, pos: [-8, 3, 2] },
-        cool: { color: 0x6b8ca1, intensity: 1.35, pos: [9, 1, 1.5] },
-        blush: { color: 0xe8b8c8, intensity: 0.7, pos: [-4, -6, 2] },
-        fill: { color: 0xf1ede1, intensity: 0.35, pos: [0, 10, 1] },
-        palettes: [
-          { color: 0xd8cfc0, thickBase: 280, thickSpan: 420 },
-          { color: 0x6b8ca1, thickBase: 90, thickSpan: 280 },
-          { color: 0xd6d4b8, thickBase: 340, thickSpan: 380 },
-        ],
-        metalness: 0.82,
-        roughness: 0.1,
-        iridescenceIOR: 1.35,
-        clearcoat: 0.7,
-        clearcoatRoughness: 0.08,
-        envMapIntensity: 1.55,
-        envGain: 1,
-      };
+  const looks = {
+    keep: {
+      exposure: 1.12,
+      ambient: { color: 0xb8c0c8, intensity: 0.18 },
+      key: { color: 0xe8d8c8, intensity: 0.85, pos: [-8, 3, 2] },
+      cool: { color: 0x6b8ca1, intensity: 1.35, pos: [9, 1, 1.5] },
+      blush: { color: 0xe8b8c8, intensity: 0.7, pos: [-4, -6, 2] },
+      fill: { color: 0xf1ede1, intensity: 0.35, pos: [0, 10, 1] },
+      palettes: [
+        { color: 0xd8cfc0, thickBase: 280, thickSpan: 420 },
+        { color: 0x6b8ca1, thickBase: 90, thickSpan: 280 },
+        { color: 0xd6d4b8, thickBase: 340, thickSpan: 380 },
+      ],
+      metalness: 0.82,
+      roughness: 0.1,
+      iridescenceIOR: 1.35,
+      clearcoat: 0.7,
+      clearcoatRoughness: 0.08,
+      envMapIntensity: 1.55,
+      envGain: 1,
+    },
+    // Brighter than keep. Env intensity is the bloom lever — 2.55
+    // let cream neighbors cascade into a white flash.
+    play: {
+      exposure: 1.18,
+      ambient: { color: 0xd4d8dc, intensity: 0.24 },
+      key: { color: 0xf0dcc8, intensity: 1.1, pos: [-7, 3.4, 2.5] },
+      cool: { color: 0x84b0c6, intensity: 1.48, pos: [8.5, 1.2, 2] },
+      blush: { color: 0xf4c0d4, intensity: 0.95, pos: [-3.5, -5.5, 2.4] },
+      fill: { color: 0xf2ece0, intensity: 0.38, pos: [0, 9.2, 1.4] },
+      palettes: [
+        { color: 0xe2d4c2, thickBase: 260, thickSpan: 420 },
+        { color: 0x88a8bc, thickBase: 70, thickSpan: 320 },
+        { color: 0xdbd4a6, thickBase: 320, thickSpan: 400 },
+      ],
+      metalness: 0.9,
+      roughness: 0.07,
+      iridescenceIOR: 1.4,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.06,
+      envMapIntensity: 1.7,
+      envGain: 1.12,
+    },
+    toys: {
+      exposure: 1.26,
+      ambient: { color: 0xd8dce0, intensity: 0.28 },
+      key: { color: 0xf2dcc8, intensity: 1.2, pos: [-7, 3.4, 2.6] },
+      cool: { color: 0x8cb4cc, intensity: 1.65, pos: [8.4, 1.3, 2.1] },
+      blush: { color: 0xffc0d8, intensity: 1.15, pos: [-3.4, -5.4, 2.5] },
+      fill: { color: 0xf4eee0, intensity: 0.48, pos: [0, 9.2, 1.5] },
+      palettes: [
+        { color: 0xe4d6c4, thickBase: 260, thickSpan: 480 },
+        { color: 0x88a8bc, thickBase: 70, thickSpan: 340 },
+        { color: 0xe0d8a8, thickBase: 320, thickSpan: 420 },
+      ],
+      metalness: 0.94,
+      roughness: 0.045,
+      iridescenceIOR: 1.42,
+      clearcoat: 0.95,
+      clearcoatRoughness: 0.04,
+      envMapIntensity: 2.55,
+      envGain: 1.35,
+    },
+  };
+  const look = looks[section.dataset.clouds] || looks.keep;
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -173,13 +194,13 @@ function initCloudField(section) {
 
     const blobs = [
       { x: 0.18, y: 0.22, r: 0.26, col: `rgba(210,230,255,${0.85 * gain})` },
-      { x: 0.72, y: 0.16, r: 0.24, col: `rgba(246,247,232,${Math.min(1, gain)})` },
+      { x: 0.72, y: 0.16, r: 0.24, col: `rgba(246,247,232,${Math.min(isPlay ? 0.78 : 1, gain)})` },
       { x: 0.42, y: 0.38, r: 0.22, col: `rgba(247,248,230,${0.95 * gain})` },
       { x: 0.88, y: 0.48, r: 0.2, col: `rgba(238,241,236,${0.9 * gain})` },
       { x: 0.5, y: 0.82, r: 0.28, col: `rgba(255,150,205,${0.85 * gain})` },
       { x: 0.28, y: 0.7, r: 0.2, col: `rgba(241,237,225,${0.9 * gain})` },
     ];
-    if (brightLook) {
+    if (isToys) {
       blobs.push(
         { x: 0.12, y: 0.55, r: 0.22, col: "rgba(130,190,230,0.95)" },
         { x: 0.78, y: 0.72, r: 0.24, col: "rgba(255,110,190,0.9)" },
