@@ -21,6 +21,7 @@ if (canvas && section) {
     alpha: true,
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.45;
 
@@ -36,23 +37,27 @@ if (canvas && section) {
     c.height = 512;
     const ctx = c.getContext("2d");
 
-    ctx.fillStyle = "#08070a";
+    ctx.fillStyle = "#05060a";
     ctx.fillRect(0, 0, c.width, c.height);
 
-    const g = ctx.createLinearGradient(0, 0, 0, c.height);
-    g.addColorStop(0.0, "#f6f7e8");
-    g.addColorStop(0.28, "#eeefe2");
-    g.addColorStop(0.52, "#f1ede1");
-    g.addColorStop(0.78, "#f2eae1");
-    g.addColorStop(1.0, "#eed8de");
+    const g = ctx.createLinearGradient(0, 0, c.width, c.height);
+    g.addColorStop(0.0, "rgba(167,198,218,0.4)");
+    g.addColorStop(0.18, "rgba(107,140,161,0.22)");
+    g.addColorStop(0.4, "rgba(20,16,32,0)");
+    g.addColorStop(0.62, "rgba(246,247,232,0.55)");
+    g.addColorStop(0.78, "rgba(241,237,225,0.5)");
+    g.addColorStop(0.9, "rgba(243,207,224,0.4)");
+    g.addColorStop(1.0, "rgba(255,91,176,0.45)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, c.width, c.height);
 
     const blobs = [
-      { x: 0.22, y: 0.18, r: 0.28, col: "rgba(246,247,232,1)" },
-      { x: 0.72, y: 0.22, r: 0.24, col: "rgba(247,248,230,0.95)" },
-      { x: 0.48, y: 0.55, r: 0.22, col: "rgba(241,237,225,0.9)" },
-      { x: 0.8, y: 0.78, r: 0.2, col: "rgba(238,216,222,0.75)" },
+      { x: 0.18, y: 0.22, r: 0.26, col: "rgba(210,230,255,0.85)" },
+      { x: 0.72, y: 0.16, r: 0.24, col: "rgba(246,247,232,1)" },
+      { x: 0.42, y: 0.38, r: 0.22, col: "rgba(247,248,230,0.95)" },
+      { x: 0.88, y: 0.48, r: 0.2, col: "rgba(238,241,236,0.9)" },
+      { x: 0.5, y: 0.82, r: 0.28, col: "rgba(255,150,205,0.85)" },
+      { x: 0.28, y: 0.7, r: 0.2, col: "rgba(241,237,225,0.9)" },
     ];
     blobs.forEach((b) => {
       const rg = ctx.createRadialGradient(
@@ -95,36 +100,19 @@ if (canvas && section) {
   envSphere.layers.set(ENV_LAYER);
   scene.add(envSphere);
 
-  scene.add(new THREE.AmbientLight(0xf6f7e8, 0.55));
-  const keyLight = new THREE.DirectionalLight(0xf6f7e8, 2.2);
+  scene.add(new THREE.AmbientLight(0xf6f7e8, 0.38));
+  const keyLight = new THREE.DirectionalLight(0xf6f7e8, 2.0);
   keyLight.position.set(5, 4, 6);
   scene.add(keyLight);
-  const creamLight = new THREE.DirectionalLight(0xf1ede1, 1.8);
+  const creamLight = new THREE.DirectionalLight(0xf1ede1, 1.6);
   creamLight.position.set(-2, 5, 3);
   scene.add(creamLight);
-  const blushLight = new THREE.DirectionalLight(0xeed8de, 0.7);
-  blushLight.position.set(2, -4, 3);
-  scene.add(blushLight);
-
-  function makeCreamGradientMap() {
-    const c = document.createElement("canvas");
-    c.width = 512;
-    c.height = 256;
-    const ctx = c.getContext("2d");
-    const g = ctx.createLinearGradient(0, 0, 0, c.height);
-    g.addColorStop(0.0, "#f6f7e8");
-    g.addColorStop(0.32, "#eeefe2");
-    g.addColorStop(0.58, "#f1ede1");
-    g.addColorStop(0.82, "#f2eae1");
-    g.addColorStop(1.0, "#eed8de");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, c.width, c.height);
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }
-
-  const creamMap = makeCreamGradientMap();
+  const rimLight = new THREE.DirectionalLight(0xa8c8ff, 1.35);
+  rimLight.position.set(-6, -2, 4);
+  scene.add(rimLight);
+  const pinkFill = new THREE.DirectionalLight(0xffd6ec, 0.9);
+  pinkFill.position.set(3, -3, 4);
+  scene.add(pinkFill);
 
   const BOX_W = 3.2;
   const BOX_H = 1.6;
@@ -149,9 +137,24 @@ if (canvas && section) {
   ];
 
   const palettes = [
-    { color: 0xf6f7e8, thickBase: 220, thickSpan: 260 },
-    { color: 0xf1ede1, thickBase: 260, thickSpan: 240 },
-    { color: 0xf7f8e6, thickBase: 200, thickSpan: 220 },
+    {
+      // Warm Figma frame: cream → rose
+      color: 0xf0ebe0,
+      thickBase: 280,
+      thickSpan: 420,
+    },
+    {
+      // Cool Figma frame: steel → cream-white
+      color: 0xb4bcc6,
+      thickBase: 90,
+      thickSpan: 280,
+    },
+    {
+      // Warm cream, slightly more yellow-chartreuse like #f6f7e8
+      color: 0xf3f4e6,
+      thickBase: 340,
+      thickSpan: 380,
+    },
   ];
 
   const panels = [];
@@ -164,15 +167,14 @@ if (canvas && section) {
 
       const material = new THREE.MeshPhysicalMaterial({
         color: new THREE.Color(pal.color),
-        map: creamMap,
-        metalness: 0.85,
-        roughness: 0.08,
-        iridescence: 0.45,
-        iridescenceIOR: 1.3,
+        metalness: 1.0,
+        roughness: 0.025,
+        iridescence: 1.0,
+        iridescenceIOR: 1.4,
         iridescenceThicknessRange: [pal.thickBase, pal.thickBase + pal.thickSpan],
-        clearcoat: 0.8,
-        clearcoatRoughness: 0.06,
-        envMapIntensity: 2.2,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.03,
+        envMapIntensity: 3.8,
       });
 
       const cubeRT = new THREE.WebGLCubeRenderTarget(256, {

@@ -340,10 +340,17 @@ body {
   color: var(--accent-hover);
 }
 
-/* Showcase: animated gradient clouds on black canvas */
+/* Showcase: animated clouds on the Figma cream gradient */
 .showcase {
   position: relative;
-  background: #000;
+  background: linear-gradient(
+    180deg,
+    #f6f7e8 0%,
+    #eeefe2 28%,
+    #f1ede1 55%,
+    #f2eae1 78%,
+    #eed8de 100%
+  );
   overflow: hidden;
   min-height: 92vh;
   display: flex;
@@ -384,12 +391,7 @@ body {
   width: 100%;
   height: 100%;
   display: block;
-  /* faint central glow so the void isn't pure flat black */
-  background: radial-gradient(
-    120% 90% at 50% 55%,
-    rgba(36, 40, 56, 0.4) 0%,
-    rgba(0, 0, 0, 0) 60%
-  );
+  background: transparent;
 }
 
 /* Contact */
