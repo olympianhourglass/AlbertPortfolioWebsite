@@ -7,6 +7,79 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
+function toyMaterial(color, envMap) {
+  return new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(color),
+    metalness: 0.82,
+    roughness: 0.16,
+    iridescence: 1.0,
+    iridescenceIOR: 1.4,
+    iridescenceThicknessRange: [140, 520],
+    clearcoat: 0.75,
+    clearcoatRoughness: 0.08,
+    envMap,
+    envMapIntensity: 1.7,
+  });
+}
+
+function makeToy(index, envMap) {
+  const hues = [0xff6bb5, 0x6b8ca1, 0xf2e6a8, 0x8ec5ff, 0xff9a6b, 0xc4b5fd];
+  const mat = toyMaterial(hues[index % hues.length], envMap);
+  const group = new THREE.Group();
+  const kind = index % 12;
+
+  if (kind === 0) {
+    group.add(new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.17, 20, 48), mat));
+  } else if (kind === 1) {
+    group.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), mat));
+  } else if (kind === 2) {
+    group.add(
+      new THREE.Mesh(new THREE.TorusKnotGeometry(0.3, 0.1, 90, 14, 2, 3), mat)
+    );
+  } else if (kind === 3) {
+    group.add(new THREE.Mesh(new THREE.OctahedronGeometry(0.52), mat));
+  } else if (kind === 4) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.05, 28), mat);
+    cone.rotation.z = 0.18;
+    group.add(cone);
+  } else if (kind === 5) {
+    group.add(new THREE.Mesh(new THREE.SphereGeometry(0.34, 32, 24), mat));
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.5, 0.045, 12, 48),
+      toyMaterial(0xf6e6c8, envMap)
+    );
+    ring.rotation.x = 1.15;
+    group.add(ring);
+  } else if (kind === 6) {
+    const cap = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.72, 8, 16), mat);
+    cap.rotation.z = Math.PI / 2;
+    group.add(cap);
+  } else if (kind === 7) {
+    group.add(new THREE.Mesh(new THREE.TetrahedronGeometry(0.58), mat));
+  } else if (kind === 8) {
+    group.add(new THREE.Mesh(new THREE.SphereGeometry(0.44, 32, 24), mat));
+  } else if (kind === 9) {
+    group.add(new THREE.Mesh(new THREE.DodecahedronGeometry(0.46), mat));
+  } else if (kind === 10) {
+    const a = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.1, 16, 40), mat);
+    const b = new THREE.Mesh(
+      new THREE.TorusGeometry(0.4, 0.1, 16, 40),
+      toyMaterial(0xffd6ec, envMap)
+    );
+    a.rotation.x = 0.2;
+    b.rotation.y = 1.2;
+    group.add(a, b);
+  } else {
+    const spool = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.28, 28), mat);
+    spool.rotation.z = Math.PI / 2;
+    group.add(spool);
+  }
+
+  // Fill the facing face; keep Z short so they stay inside the case.
+  group.scale.set(1.42, 1.22, 0.78);
+  return group;
+}
+
 function initCloudField(section) {
   const canvas = section.querySelector(".cloud-canvas");
   if (!canvas) return;
@@ -14,10 +87,12 @@ function initCloudField(section) {
     "(prefers-reduced-motion: reduce)"
   ).matches;
   const isPlay = section.dataset.clouds === "play";
+  const isToys = section.dataset.clouds === "toys";
+  const brightLook = isPlay || isToys;
 
   // Play sits between the current muted keep look and the earlier
   // blown-out cream lighting — brighter iridescence, still colored.
-  const look = isPlay
+  const look = brightLook
     ? {
         exposure: 1.26,
         ambient: { color: 0xd8dce0, intensity: 0.28 },
@@ -104,7 +179,7 @@ function initCloudField(section) {
       { x: 0.5, y: 0.82, r: 0.28, col: `rgba(255,150,205,${0.85 * gain})` },
       { x: 0.28, y: 0.7, r: 0.2, col: `rgba(241,237,225,${0.9 * gain})` },
     ];
-    if (isPlay) {
+    if (brightLook) {
       blobs.push(
         { x: 0.12, y: 0.55, r: 0.22, col: "rgba(130,190,230,0.95)" },
         { x: 0.78, y: 0.72, r: 0.24, col: "rgba(255,110,190,0.9)" },
@@ -200,29 +275,39 @@ function initCloudField(section) {
 
       const material = new THREE.MeshPhysicalMaterial({
         color: new THREE.Color(pal.color),
-        metalness: look.metalness,
-        roughness: look.roughness,
+        metalness: isToys ? 0.12 : look.metalness,
+        roughness: isToys ? 0.06 : look.roughness,
         iridescence: 1.0,
-        iridescenceIOR: look.iridescenceIOR,
+        iridescenceIOR: isToys ? 1.5 : look.iridescenceIOR,
         iridescenceThicknessRange: [pal.thickBase, pal.thickBase + pal.thickSpan],
-        clearcoat: look.clearcoat,
-        clearcoatRoughness: look.clearcoatRoughness,
-        envMapIntensity: look.envMapIntensity,
+        clearcoat: isToys ? 1.0 : look.clearcoat,
+        clearcoatRoughness: isToys ? 0.04 : look.clearcoatRoughness,
+        envMapIntensity: isToys ? 2.1 : look.envMapIntensity,
+        transparent: isToys,
+        opacity: isToys ? 0.4 : 1,
+        side: isToys ? THREE.DoubleSide : THREE.FrontSide,
+        depthWrite: !isToys,
       });
 
-      const cubeRT = new THREE.WebGLCubeRenderTarget(256, {
-        type: THREE.HalfFloatType,
-      });
-      const cubeCam = new THREE.CubeCamera(0.35, 60, cubeRT);
-      cubeCam.layers.enable(ENV_LAYER);
-      cubeCam.children.forEach((cam) => cam.layers.enable(ENV_LAYER));
-      scene.add(cubeCam);
-
-      material.envMap = cubeRT.texture;
+      let cubeCam = null;
+      let cubeRT = null;
+      if (!isToys) {
+        cubeRT = new THREE.WebGLCubeRenderTarget(256, {
+          type: THREE.HalfFloatType,
+        });
+        cubeCam = new THREE.CubeCamera(0.35, 60, cubeRT);
+        cubeCam.layers.enable(ENV_LAYER);
+        cubeCam.children.forEach((cam) => cam.layers.enable(ENV_LAYER));
+        scene.add(cubeCam);
+        material.envMap = cubeRT.texture;
+      } else {
+        material.envMap = envRT.texture;
+      }
 
       const mesh = new THREE.Mesh(geometry, material);
       mesh.rotation.y = BASE_ROT_Y;
       mesh.rotation.x = BASE_ROT_X;
+      if (isToys) mesh.renderOrder = 1;
 
       const s = 0.9;
       mesh.scale.setScalar(s);
@@ -246,7 +331,19 @@ function initCloudField(section) {
         wobbleAmpY: 0,
         wobbleAmpZ: 0,
         wobbleFreq: 8,
+        toy: null,
+        toySpinX: 0,
+        toySpinY: 0,
       };
+
+      if (isToys) {
+        const toy = makeToy(panelIndex - 1, envRT.texture);
+        toy.renderOrder = 0;
+        mesh.add(toy);
+        mesh.userData.toy = toy;
+        mesh.userData.toySpinX = 0.35 + Math.random() * 0.45;
+        mesh.userData.toySpinY = 0.55 + Math.random() * 0.7;
+      }
 
       scene.add(mesh);
       panels.push(mesh);
@@ -274,6 +371,7 @@ function initCloudField(section) {
   let reflectIndex = 0;
 
   function updateReflection(mesh) {
+    if (!mesh.userData.cubeCam) return;
     try {
       const u = mesh.userData;
       mesh.visible = false;
@@ -307,6 +405,10 @@ function initCloudField(section) {
         u.wobbleAmpZ * Math.sin(u.wobbleT * u.wobbleFreq * 1.12) * damp;
       const th = u.thickBase + Math.sin(t * 0.5 + u.phase) * 90;
       m.material.iridescenceThicknessRange = [th, th + 340];
+      if (u.toy) {
+        u.toy.rotation.x += dt * u.toySpinX;
+        u.toy.rotation.y += dt * u.toySpinY;
+      }
     }
 
     // Same-lane only. Cross-lane pairs are already separated in Y;
