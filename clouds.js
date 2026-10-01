@@ -13,6 +13,51 @@ function initCloudField(section) {
   const reduceMotion = window.matchMedia(
     "(prefers-reduced-motion: reduce)"
   ).matches;
+  const isPlay = section.dataset.clouds === "play";
+
+  // Play sits between the current muted keep look and the earlier
+  // blown-out cream lighting — brighter iridescence, still colored.
+  const look = isPlay
+    ? {
+        exposure: 1.26,
+        ambient: { color: 0xd8dce0, intensity: 0.28 },
+        key: { color: 0xf2dcc8, intensity: 1.2, pos: [-7, 3.4, 2.6] },
+        cool: { color: 0x8cb4cc, intensity: 1.65, pos: [8.4, 1.3, 2.1] },
+        blush: { color: 0xffc0d8, intensity: 1.15, pos: [-3.4, -5.4, 2.5] },
+        fill: { color: 0xf4eee0, intensity: 0.48, pos: [0, 9.2, 1.5] },
+        palettes: [
+          { color: 0xe4d6c4, thickBase: 260, thickSpan: 480 },
+          { color: 0x88a8bc, thickBase: 70, thickSpan: 340 },
+          { color: 0xe0d8a8, thickBase: 320, thickSpan: 420 },
+        ],
+        metalness: 0.94,
+        roughness: 0.045,
+        iridescenceIOR: 1.42,
+        clearcoat: 0.95,
+        clearcoatRoughness: 0.04,
+        envMapIntensity: 2.55,
+        envGain: 1.35,
+      }
+    : {
+        exposure: 1.12,
+        ambient: { color: 0xb8c0c8, intensity: 0.18 },
+        key: { color: 0xe8d8c8, intensity: 0.85, pos: [-8, 3, 2] },
+        cool: { color: 0x6b8ca1, intensity: 1.35, pos: [9, 1, 1.5] },
+        blush: { color: 0xe8b8c8, intensity: 0.7, pos: [-4, -6, 2] },
+        fill: { color: 0xf1ede1, intensity: 0.35, pos: [0, 10, 1] },
+        palettes: [
+          { color: 0xd8cfc0, thickBase: 280, thickSpan: 420 },
+          { color: 0x6b8ca1, thickBase: 90, thickSpan: 280 },
+          { color: 0xd6d4b8, thickBase: 340, thickSpan: 380 },
+        ],
+        metalness: 0.82,
+        roughness: 0.1,
+        iridescenceIOR: 1.35,
+        clearcoat: 0.7,
+        clearcoatRoughness: 0.08,
+        envMapIntensity: 1.55,
+        envGain: 1,
+      };
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -22,7 +67,7 @@ function initCloudField(section) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  renderer.toneMappingExposure = look.exposure;
 
   const scene = new THREE.Scene();
 
@@ -39,25 +84,33 @@ function initCloudField(section) {
     ctx.fillStyle = "#05060a";
     ctx.fillRect(0, 0, c.width, c.height);
 
+    const gain = look.envGain;
     const g = ctx.createLinearGradient(0, 0, c.width, c.height);
-    g.addColorStop(0.0, "rgba(167,198,218,0.4)");
-    g.addColorStop(0.18, "rgba(107,140,161,0.22)");
+    g.addColorStop(0.0, `rgba(167,198,218,${0.4 * gain})`);
+    g.addColorStop(0.18, `rgba(107,140,161,${0.22 * gain})`);
     g.addColorStop(0.4, "rgba(20,16,32,0)");
-    g.addColorStop(0.62, "rgba(246,247,232,0.55)");
-    g.addColorStop(0.78, "rgba(241,237,225,0.5)");
-    g.addColorStop(0.9, "rgba(243,207,224,0.4)");
-    g.addColorStop(1.0, "rgba(255,91,176,0.45)");
+    g.addColorStop(0.62, `rgba(246,247,232,${0.55 * gain})`);
+    g.addColorStop(0.78, `rgba(241,237,225,${0.5 * gain})`);
+    g.addColorStop(0.9, `rgba(243,207,224,${0.4 * gain})`);
+    g.addColorStop(1.0, `rgba(255,91,176,${0.45 * gain})`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, c.width, c.height);
 
     const blobs = [
-      { x: 0.18, y: 0.22, r: 0.26, col: "rgba(210,230,255,0.85)" },
-      { x: 0.72, y: 0.16, r: 0.24, col: "rgba(246,247,232,1)" },
-      { x: 0.42, y: 0.38, r: 0.22, col: "rgba(247,248,230,0.95)" },
-      { x: 0.88, y: 0.48, r: 0.2, col: "rgba(238,241,236,0.9)" },
-      { x: 0.5, y: 0.82, r: 0.28, col: "rgba(255,150,205,0.85)" },
-      { x: 0.28, y: 0.7, r: 0.2, col: "rgba(241,237,225,0.9)" },
+      { x: 0.18, y: 0.22, r: 0.26, col: `rgba(210,230,255,${0.85 * gain})` },
+      { x: 0.72, y: 0.16, r: 0.24, col: `rgba(246,247,232,${Math.min(1, gain)})` },
+      { x: 0.42, y: 0.38, r: 0.22, col: `rgba(247,248,230,${0.95 * gain})` },
+      { x: 0.88, y: 0.48, r: 0.2, col: `rgba(238,241,236,${0.9 * gain})` },
+      { x: 0.5, y: 0.82, r: 0.28, col: `rgba(255,150,205,${0.85 * gain})` },
+      { x: 0.28, y: 0.7, r: 0.2, col: `rgba(241,237,225,${0.9 * gain})` },
     ];
+    if (isPlay) {
+      blobs.push(
+        { x: 0.12, y: 0.55, r: 0.22, col: "rgba(130,190,230,0.95)" },
+        { x: 0.78, y: 0.72, r: 0.24, col: "rgba(255,110,190,0.9)" },
+        { x: 0.58, y: 0.18, r: 0.18, col: "rgba(255,230,210,0.75)" }
+      );
+    }
     blobs.forEach((b) => {
       const rg = ctx.createRadialGradient(
         b.x * c.width,
@@ -101,18 +154,18 @@ function initCloudField(section) {
 
   // Raking lights from the sides — not sitting in front of the camera —
   // so the face-on slabs pick up hue instead of clipping to white.
-  scene.add(new THREE.AmbientLight(0xb8c0c8, 0.18));
-  const keyLight = new THREE.DirectionalLight(0xe8d8c8, 0.85);
-  keyLight.position.set(-8, 3, 2);
+  scene.add(new THREE.AmbientLight(look.ambient.color, look.ambient.intensity));
+  const keyLight = new THREE.DirectionalLight(look.key.color, look.key.intensity);
+  keyLight.position.set(...look.key.pos);
   scene.add(keyLight);
-  const coolRim = new THREE.DirectionalLight(0x6b8ca1, 1.35);
-  coolRim.position.set(9, 1, 1.5);
+  const coolRim = new THREE.DirectionalLight(look.cool.color, look.cool.intensity);
+  coolRim.position.set(...look.cool.pos);
   scene.add(coolRim);
-  const blushRim = new THREE.DirectionalLight(0xe8b8c8, 0.7);
-  blushRim.position.set(-4, -6, 2);
+  const blushRim = new THREE.DirectionalLight(look.blush.color, look.blush.intensity);
+  blushRim.position.set(...look.blush.pos);
   scene.add(blushRim);
-  const topFill = new THREE.DirectionalLight(0xf1ede1, 0.35);
-  topFill.position.set(0, 10, 1);
+  const topFill = new THREE.DirectionalLight(look.fill.color, look.fill.intensity);
+  topFill.position.set(...look.fill.pos);
   scene.add(topFill);
 
   const BOX_W = 4.35;
@@ -135,26 +188,7 @@ function initCloudField(section) {
     { y: 3.45, count: 6, speed: -0.34, phase: 0.5 },
   ];
 
-  const palettes = [
-    {
-      // Warm Figma frame: cream, kept off-white so it doesn't clip
-      color: 0xd8cfc0,
-      thickBase: 280,
-      thickSpan: 420,
-    },
-    {
-      // Cool Figma frame: steel blue
-      color: 0x6b8ca1,
-      thickBase: 90,
-      thickSpan: 280,
-    },
-    {
-      // Chartreuse cream from the warm frame
-      color: 0xd6d4b8,
-      thickBase: 340,
-      thickSpan: 380,
-    },
-  ];
+  const palettes = look.palettes;
 
   const panels = [];
   let panelIndex = 0;
@@ -166,14 +200,14 @@ function initCloudField(section) {
 
       const material = new THREE.MeshPhysicalMaterial({
         color: new THREE.Color(pal.color),
-        metalness: 0.82,
-        roughness: 0.1,
+        metalness: look.metalness,
+        roughness: look.roughness,
         iridescence: 1.0,
-        iridescenceIOR: 1.35,
+        iridescenceIOR: look.iridescenceIOR,
         iridescenceThicknessRange: [pal.thickBase, pal.thickBase + pal.thickSpan],
-        clearcoat: 0.7,
-        clearcoatRoughness: 0.08,
-        envMapIntensity: 1.55,
+        clearcoat: look.clearcoat,
+        clearcoatRoughness: look.clearcoatRoughness,
+        envMapIntensity: look.envMapIntensity,
       });
 
       const cubeRT = new THREE.WebGLCubeRenderTarget(256, {
