@@ -19,7 +19,6 @@ if (canvas && section) {
     canvas,
     antialias: true,
     alpha: true,
-    preserveDrawingBuffer: true,
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000, 0);
@@ -209,6 +208,11 @@ if (canvas && section) {
         cubeCam,
         cubeRT,
         pmremRT: null,
+        wobbleT: 99,
+        wobbleAmpX: 0,
+        wobbleAmpY: 0,
+        wobbleAmpZ: 0,
+        wobbleFreq: 8,
       };
 
       scene.add(mesh);
@@ -253,9 +257,20 @@ if (canvas && section) {
   function renderFrame() {
     const t = clock.getElapsedTime();
 
+    const dt = clock.getDelta();
+
     for (const m of panels) {
       const u = m.userData;
       m.position.x = wrap(u.baseX + t * u.speed, WRAP_LIMIT);
+      u.wobbleT += dt;
+      const damp = Math.exp(-u.wobbleT * 2.6);
+      m.rotation.x =
+        BASE_ROT_X + u.wobbleAmpX * Math.sin(u.wobbleT * u.wobbleFreq) * damp;
+      m.rotation.y =
+        BASE_ROT_Y +
+        u.wobbleAmpY * Math.sin(u.wobbleT * u.wobbleFreq * 0.86) * damp;
+      m.rotation.z =
+        u.wobbleAmpZ * Math.sin(u.wobbleT * u.wobbleFreq * 1.12) * damp;
       const th = u.thickBase + Math.sin(t * 0.5 + u.phase) * 90;
       m.material.iridescenceThicknessRange = [th, th + 340];
     }
@@ -287,65 +302,39 @@ if (canvas && section) {
     }
 
     renderer.render(scene, camera);
-    updateTextContrast();
   }
 
-  const titleEl = section.querySelector(".showcase-title");
-  const subEl = section.querySelector(".showcase-sub");
-  const samplePixel = new Uint8Array(4);
-  const dbSize = new THREE.Vector2();
+  const clickRay = new THREE.Raycaster();
+  const clickPtr = new THREE.Vector2();
+  const clickPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  const clickHit = new THREE.Vector3();
 
-  function sampleCoverage(el) {
-    if (!el) return { covered: 0, lum: 0 };
-    const er = el.getBoundingClientRect();
-    const cr = canvas.getBoundingClientRect();
-    renderer.getDrawingBufferSize(dbSize);
-    const gl = renderer.getContext();
-    const cols = 8;
-    const rows = 3;
-    let opaque = 0;
-    let lumSum = 0;
-    let n = 0;
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const cx = er.left + (er.width * (col + 0.5)) / cols;
-        const cy = er.top + (er.height * (row + 0.5)) / rows;
-        if (cx < cr.left || cy < cr.top || cx > cr.right || cy > cr.bottom) {
-          continue;
-        }
-        const px = Math.floor(((cx - cr.left) / cr.width) * dbSize.x);
-        const py = Math.floor((1 - (cy - cr.top) / cr.height) * dbSize.y);
-        gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, samplePixel);
-        n += 1;
-        if (samplePixel[3] > 28) {
-          opaque += 1;
-          lumSum +=
-            (0.2126 * samplePixel[0] +
-              0.7152 * samplePixel[1] +
-              0.0722 * samplePixel[2]) /
-            255;
-        }
-      }
+  section.addEventListener("click", (event) => {
+    if (reduceMotion) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    clickPtr.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    clickPtr.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    clickRay.setFromCamera(clickPtr, camera);
+    if (!clickRay.ray.intersectPlane(clickPlane, clickHit)) return;
+
+    for (const m of panels) {
+      const dx = m.position.x - clickHit.x;
+      const dy = m.position.y - clickHit.y;
+      const falloff = Math.min(1.35, 2.4 / (Math.hypot(dx, dy) + 0.4));
+      const u = m.userData;
+      u.wobbleT = 0;
+      u.wobbleAmpX = THREE.MathUtils.degToRad(8 + 16 * falloff) * Math.sign(dy || 1);
+      u.wobbleAmpY = THREE.MathUtils.degToRad(10 + 18 * falloff) * Math.sign(dx || 1);
+      u.wobbleAmpZ = THREE.MathUtils.degToRad(5 + 8 * falloff) * (dx >= 0 ? 1 : -1);
+      u.wobbleFreq = 6.5 + Math.random() * 3.5;
     }
-    return {
-      covered: n ? opaque / n : 0,
-      lum: opaque ? lumSum / opaque : 0,
-    };
-  }
-
-  function updateTextContrast() {
-    for (const el of [titleEl, subEl]) {
-      if (!el) continue;
-      const { covered, lum } = sampleCoverage(el);
-      el.classList.toggle("on-cloud", covered > 0.16 && lum > 0.45);
-    }
-  }
+  });
 
   if (reduceMotion) {
     for (const m of panels) updateReflection(m);
     resize();
     renderer.render(scene, camera);
-    updateTextContrast();
   } else {
     let running = true;
     const io = new IntersectionObserver(

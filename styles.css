@@ -355,14 +355,16 @@ body {
   min-height: 92vh;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   border-top: 1px solid var(--border);
+  cursor: pointer;
 }
 
 .showcase-inner {
   position: relative;
   z-index: 3;
   text-align: center;
-  padding: 4rem 1.5rem 0;
+  padding: 2rem 1.5rem 5rem;
   pointer-events: none;
 }
 
@@ -371,24 +373,17 @@ body {
   font-weight: 500;
   letter-spacing: 0;
   text-transform: uppercase;
-  color: #fff;
+  color: #3d5a80;
   margin-bottom: 0.75rem;
-  transition: color 0.16s ease;
 }
 
 .showcase-sub {
   font-family: "Neue Haas Display", system-ui, sans-serif;
   font-weight: 500;
   letter-spacing: 0;
-  color: #fff;
+  color: #3d5a80;
   max-width: 36rem;
   margin: 0 auto;
-  transition: color 0.16s ease;
-}
-
-.showcase-title.on-cloud,
-.showcase-sub.on-cloud {
-  color: #3d5a80;
 }
 
 .cloud-canvas {
