@@ -27,7 +27,7 @@ if (canvas && section) {
   const scene = new THREE.Scene();
 
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-  camera.position.set(0, 0, 9);
+  camera.position.set(0, 0, 11);
 
   // --- Environment: an equirectangular gradient built from the Figma colors.
   // The metallic panels reflect this, so their iridescence rides on pink/blue.
@@ -92,17 +92,18 @@ if (canvas && section) {
   rimLight.position.set(-6, -2, 4);
   scene.add(rimLight);
 
-  // --- Panels: thin rounded boxes, ALL parallel, viewed nearly edge-on.
-  const geometry = new RoundedBoxGeometry(2.4, 1.5, 0.16, 5, 0.06);
+  // --- Panels: rounded boxes with a 16 x 8 x 2 ratio (8:4:1).
+  // The wide 16 x 8 face is the one that faces the viewer.
+  const geometry = new RoundedBoxGeometry(3.2, 1.6, 0.4, 6, 0.1);
 
   // Shared orientation => all panels stay parallel in 3D space.
-  // ~84° puts us almost edge-on: one slim edge faces the viewer, the
-  // iridescent face catches light in a foreshortened sliver.
-  const BASE_ROT_Y = THREE.MathUtils.degToRad(84);
-  const BASE_ROT_X = THREE.MathUtils.degToRad(-2);
+  // Mostly face-on so the big 16x8 face reads large, with a modest angle
+  // so the 2-unit thickness is still visible as real 3D depth.
+  const BASE_ROT_Y = THREE.MathUtils.degToRad(22);
+  const BASE_ROT_X = THREE.MathUtils.degToRad(-10);
 
-  const COUNT = 16;
-  const SPREAD_X = 9;
+  const COUNT = 11;
+  const SPREAD_X = 11;
   const panels = [];
 
   for (let i = 0; i < COUNT; i++) {
