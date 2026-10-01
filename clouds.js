@@ -23,7 +23,7 @@ if (canvas && section) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.45;
+  renderer.toneMappingExposure = 1.12;
 
   const scene = new THREE.Scene();
 
@@ -100,19 +100,21 @@ if (canvas && section) {
   envSphere.layers.set(ENV_LAYER);
   scene.add(envSphere);
 
-  scene.add(new THREE.AmbientLight(0xf6f7e8, 0.38));
-  const keyLight = new THREE.DirectionalLight(0xf6f7e8, 2.0);
-  keyLight.position.set(5, 4, 6);
+  // Raking lights from the sides — not sitting in front of the camera —
+  // so the face-on slabs pick up hue instead of clipping to white.
+  scene.add(new THREE.AmbientLight(0xb8c0c8, 0.18));
+  const keyLight = new THREE.DirectionalLight(0xe8d8c8, 0.85);
+  keyLight.position.set(-8, 3, 2);
   scene.add(keyLight);
-  const creamLight = new THREE.DirectionalLight(0xf1ede1, 1.6);
-  creamLight.position.set(-2, 5, 3);
-  scene.add(creamLight);
-  const rimLight = new THREE.DirectionalLight(0xa8c8ff, 1.35);
-  rimLight.position.set(-6, -2, 4);
-  scene.add(rimLight);
-  const pinkFill = new THREE.DirectionalLight(0xffd6ec, 0.9);
-  pinkFill.position.set(3, -3, 4);
-  scene.add(pinkFill);
+  const coolRim = new THREE.DirectionalLight(0x6b8ca1, 1.35);
+  coolRim.position.set(9, 1, 1.5);
+  scene.add(coolRim);
+  const blushRim = new THREE.DirectionalLight(0xe8b8c8, 0.7);
+  blushRim.position.set(-4, -6, 2);
+  scene.add(blushRim);
+  const topFill = new THREE.DirectionalLight(0xf1ede1, 0.35);
+  topFill.position.set(0, 10, 1);
+  scene.add(topFill);
 
   const BOX_W = 4.35;
   const BOX_H = 1.85;
@@ -136,20 +138,20 @@ if (canvas && section) {
 
   const palettes = [
     {
-      // Warm Figma frame: cream → rose
-      color: 0xf0ebe0,
+      // Warm Figma frame: cream, kept off-white so it doesn't clip
+      color: 0xd8cfc0,
       thickBase: 280,
       thickSpan: 420,
     },
     {
-      // Cool Figma frame: steel → cream-white
-      color: 0xb4bcc6,
+      // Cool Figma frame: steel blue
+      color: 0x6b8ca1,
       thickBase: 90,
       thickSpan: 280,
     },
     {
-      // Warm cream, slightly more yellow-chartreuse like #f6f7e8
-      color: 0xf3f4e6,
+      // Chartreuse cream from the warm frame
+      color: 0xd6d4b8,
       thickBase: 340,
       thickSpan: 380,
     },
@@ -165,14 +167,14 @@ if (canvas && section) {
 
       const material = new THREE.MeshPhysicalMaterial({
         color: new THREE.Color(pal.color),
-        metalness: 1.0,
-        roughness: 0.025,
+        metalness: 0.82,
+        roughness: 0.1,
         iridescence: 1.0,
-        iridescenceIOR: 1.4,
+        iridescenceIOR: 1.35,
         iridescenceThicknessRange: [pal.thickBase, pal.thickBase + pal.thickSpan],
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.03,
-        envMapIntensity: 3.8,
+        clearcoat: 0.7,
+        clearcoatRoughness: 0.08,
+        envMapIntensity: 1.55,
       });
 
       const cubeRT = new THREE.WebGLCubeRenderTarget(256, {
