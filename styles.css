@@ -386,7 +386,8 @@ body {
   margin: 0 auto;
 }
 
-.cloud-canvas {
+.cloud-canvas,
+.cloth-canvas {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -394,6 +395,15 @@ body {
   height: 100%;
   display: block;
   background: transparent;
+}
+
+.showcase-cloth {
+  cursor: grab;
+  touch-action: none;
+}
+
+.showcase-cloth.is-dragging {
+  cursor: grabbing;
 }
 
 /* Contact */
