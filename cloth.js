@@ -82,8 +82,8 @@ if (canvas && section) {
   blush.position.set(2, -5, 3);
   scene.add(blush);
 
-  const SEG_X = 32;
-  const SEG_Y = 20;
+  const SEG_X = 64;
+  const SEG_Y = 40;
   const COLS = SEG_X + 1;
   const ROWS = SEG_Y + 1;
   const WIDTH = 15.5;
@@ -91,6 +91,8 @@ if (canvas && section) {
   const REST_X = WIDTH / SEG_X;
   const REST_Y = HEIGHT / SEG_Y;
   const REST_S = Math.hypot(REST_X, REST_Y);
+  const REST_BX = REST_X * 2;
+  const REST_BY = REST_Y * 2;
 
   const geometry = new THREE.PlaneGeometry(WIDTH, HEIGHT, SEG_X, SEG_Y);
   geometry.computeVertexNormals();
@@ -122,11 +124,9 @@ if (canvas && section) {
   for (let i = 0; i < posAttr.count; i++) {
     const x = posAttr.getX(i);
     const y = posAttr.getY(i);
-    const col = i % COLS;
-    const onTop = y >= HEIGHT * 0.5 - 0.02;
-    const pinned = onTop && (col === 0 || col === COLS - 1 || col % 8 === 0);
+    const pinned = y >= HEIGHT * 0.5 - 0.02;
     const z =
-      Math.sin(x * 0.55 + y * 0.4) * 0.55 + Math.cos(x * 0.25) * 0.22;
+      Math.sin(x * 0.55 + y * 0.4) * 0.38 + Math.cos(x * 0.25) * 0.16;
     particles.push({
       x,
       y,
@@ -148,6 +148,8 @@ if (canvas && section) {
         constraints.push([i, i + COLS + 1, REST_S]);
         constraints.push([i + 1, i + COLS, REST_S]);
       }
+      if (x + 2 < COLS) constraints.push([i, i + 2, REST_BX]);
+      if (y + 2 < ROWS) constraints.push([i, i + COLS * 2, REST_BY]);
     }
   }
 
@@ -194,10 +196,11 @@ if (canvas && section) {
       p.x += vx + windX * dt2;
       p.y += vy + grav * dt2;
       p.z += vz + windZ * dt2;
-      p.z = Math.max(-1.8, Math.min(2.1, p.z));
+      if (p.z > 2.1) p.z += (2.1 - p.z) * 0.35;
+      if (p.z < -1.8) p.z += (-1.8 - p.z) * 0.35;
     }
 
-    const iters = reduceMotion ? 2 : 4;
+    const iters = reduceMotion ? 3 : 7;
     for (let n = 0; n < iters; n++) {
       for (const [i, j, rest] of constraints) {
         satisfy(particles[i], particles[j], rest);
@@ -232,7 +235,7 @@ if (canvas && section) {
   const camDir = new THREE.Vector3();
   let dragging = false;
   let grabIndex = -1;
-  const GRAB_R = 2.6;
+  const GRAB_R = 5.2;
 
   function pointerToNDC(event) {
     const rect = canvas.getBoundingClientRect();
