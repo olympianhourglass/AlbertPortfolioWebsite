@@ -84,11 +84,11 @@ if (canvas && section) {
   blush.position.set(2, -6, 4);
   scene.add(blush);
 
-  const SEG_X = 72;
-  const SEG_Y = 46;
+  const SEG_X = 80;
+  const SEG_Y = 50;
   const COLS = SEG_X + 1;
   const ROWS = SEG_Y + 1;
-  const SUB = 3;
+  const SUB = 4;
   const WIDTH = 15.5;
   const HEIGHT = 9.4;
   const REST_X = WIDTH / SEG_X;
@@ -142,7 +142,7 @@ if (canvas && section) {
         px,
         py,
         pz: z,
-        pinned: y === 0 && (x === 0 || x === SEG_X || x % 16 === 0),
+        pinned: y === 0,
       });
     }
   }
@@ -189,9 +189,9 @@ if (canvas && section) {
   }
 
   function stepSim(dt, t) {
-    const grav = reduceMotion ? 0 : -34;
-    const windX = reduceMotion ? 0 : Math.sin(t * 0.42) * 6;
-    const windZ = reduceMotion ? 0 : Math.cos(t * 0.3) * 3.6;
+    const grav = reduceMotion ? 0 : -22;
+    const windX = reduceMotion ? 0 : Math.sin(t * 0.38) * 3.2;
+    const windZ = reduceMotion ? 0 : Math.cos(t * 0.26) * 1.8;
     const damp = 0.982;
     const dt2 = dt * dt;
 
@@ -226,41 +226,89 @@ if (canvas && section) {
     return v < lo ? lo : v > hi ? hi : v;
   }
 
-  function cr1(p0, p1, p2, p3, t) {
-    const t2 = t * t;
-    const t3 = t2 * t;
-    return (
-      0.5 *
-      (2 * p1 +
-        (-p0 + p2) * t +
-        (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-        (-p0 + 3 * p1 - 3 * p2 + p3) * t3)
-    );
+  function fade(t) {
+    return t * t * t * (t * (t * 6 - 15) + 10);
   }
 
   function sampleComp(u, v, key) {
     const x = Math.floor(u);
     const y = Math.floor(v);
-    const tx = u - x;
-    const ty = v - y;
+    const tx = fade(u - x);
+    const ty = fade(v - y);
     const get = (ix, iy) =>
       particles[clampi(iy, 0, SEG_Y) * COLS + clampi(ix, 0, SEG_X)][key];
-    const r0 = cr1(get(x - 1, y - 1), get(x, y - 1), get(x + 1, y - 1), get(x + 2, y - 1), tx);
-    const r1 = cr1(get(x - 1, y), get(x, y), get(x + 1, y), get(x + 2, y), tx);
-    const r2 = cr1(get(x - 1, y + 1), get(x, y + 1), get(x + 1, y + 1), get(x + 2, y + 1), tx);
-    const r3 = cr1(get(x - 1, y + 2), get(x, y + 2), get(x + 1, y + 2), get(x + 2, y + 2), tx);
-    return cr1(r0, r1, r2, r3, ty);
+    const a = get(x, y);
+    const b = get(x + 1, y);
+    const c = get(x, y + 1);
+    const d = get(x + 1, y + 1);
+    return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
   }
 
+  const smoothX = new Float32Array(DCOLS * DROWS);
+  const smoothY = new Float32Array(DCOLS * DROWS);
+  const smoothZ = new Float32Array(DCOLS * DROWS);
+
   function writeGeometry() {
+    const count = DCOLS * DROWS;
     for (let dy = 0; dy < DROWS; dy++) {
       const v = dy / SUB;
       for (let dx = 0; dx < DCOLS; dx++) {
-        const u = dx / SUB;
         const i = dy * DCOLS + dx;
-        posAttr.setXYZ(i, sampleComp(u, v, "x"), sampleComp(u, v, "y"), sampleComp(u, v, "z"));
+        smoothX[i] = sampleComp(dx / SUB, v, "x");
+        smoothY[i] = sampleComp(dx / SUB, v, "y");
+        smoothZ[i] = sampleComp(dx / SUB, v, "z");
       }
     }
+
+    for (let pass = 0; pass < 3; pass++) {
+      for (let dy = 0; dy < DROWS; dy++) {
+        for (let dx = 0; dx < DCOLS; dx++) {
+          const i = dy * DCOLS + dx;
+          let ax = 0;
+          let ay = 0;
+          let az = 0;
+          let n = 0;
+          if (dx > 0) {
+            ax += smoothX[i - 1];
+            ay += smoothY[i - 1];
+            az += smoothZ[i - 1];
+            n += 1;
+          }
+          if (dx < DCOLS - 1) {
+            ax += smoothX[i + 1];
+            ay += smoothY[i + 1];
+            az += smoothZ[i + 1];
+            n += 1;
+          }
+          if (dy > 0) {
+            ax += smoothX[i - DCOLS];
+            ay += smoothY[i - DCOLS];
+            az += smoothZ[i - DCOLS];
+            n += 1;
+          }
+          if (dy < DROWS - 1) {
+            ax += smoothX[i + DCOLS];
+            ay += smoothY[i + DCOLS];
+            az += smoothZ[i + DCOLS];
+            n += 1;
+          }
+          posAttr.setXYZ(
+            i,
+            smoothX[i] * 0.35 + (ax / n) * 0.65,
+            smoothY[i] * 0.35 + (ay / n) * 0.65,
+            smoothZ[i] * 0.35 + (az / n) * 0.65
+          );
+        }
+      }
+      if (pass < 2) {
+        for (let i = 0; i < count; i++) {
+          smoothX[i] = posAttr.getX(i);
+          smoothY[i] = posAttr.getY(i);
+          smoothZ[i] = posAttr.getZ(i);
+        }
+      }
+    }
+
     posAttr.needsUpdate = true;
     geometry.computeVertexNormals();
   }
