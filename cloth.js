@@ -403,7 +403,16 @@ if (canvas && section) {
   const camDir = new THREE.Vector3();
   let dragging = false;
   let grabIndex = -1;
-  const GRAB_R = 7.2;
+  const GRAB_R = 9.2;
+  const GRAB_INNER = 3.4;
+
+  function grabWeight(d) {
+    if (d <= GRAB_INNER) return 1;
+    if (d >= GRAB_R) return 0;
+    const t = (d - GRAB_INNER) / (GRAB_R - GRAB_INNER);
+    const s = t * t * t * (t * (t * 6 - 15) + 10);
+    return 1 - s;
+  }
 
   function pointerToNDC(event) {
     const rect = canvas.getBoundingClientRect();
@@ -427,6 +436,11 @@ if (canvas && section) {
   }
 
   function pullToward(index, target) {
+    const g = particles[index];
+    if (!g || g.pinned) return;
+    const dx = target.x - g.x;
+    const dy = target.y - g.y;
+    const dz = target.z - g.z;
     const gx = index % COLS;
     const gy = Math.floor(index / COLS);
     for (let y = 0; y < ROWS; y++) {
@@ -434,16 +448,14 @@ if (canvas && section) {
         const i = y * COLS + x;
         const p = particles[i];
         if (p.pinned) continue;
-        const d = Math.hypot(x - gx, y - gy);
-        if (d > GRAB_R) continue;
-        const t = 1 - d / GRAB_R;
-        const w = t * t * (3 - 2 * t);
-        p.x += (target.x - p.x) * w;
-        p.y += (target.y - p.y) * w;
-        p.z += (target.z - p.z) * w;
-        p.px += (p.x - p.px) * 0.28;
-        p.py += (p.y - p.py) * 0.28;
-        p.pz += (p.z - p.pz) * 0.28;
+        const w = grabWeight(Math.hypot(x - gx, y - gy));
+        if (w <= 0) continue;
+        p.x += dx * w;
+        p.y += dy * w;
+        p.z += dz * w;
+        p.px += dx * w;
+        p.py += dy * w;
+        p.pz += dz * w;
       }
     }
   }
