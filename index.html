@@ -121,7 +121,15 @@
     </section>
 
     <!-- Iridescent cloth you can grab and pull -->
-    <section id="showcase-cloth" class="showcase showcase-cloth">
+    <section id="showcase-cloth" class="showcase showcase-cloth" data-cloth="silk">
+      <div class="showcase-inner">
+        <h2 class="section-title showcase-title">Gradient Clouds</h2>
+        <p class="showcase-sub">A material study — iridescent slabs drifting through the void, colored from the Figma frames.</p>
+      </div>
+      <canvas class="cloth-canvas" aria-hidden="true"></canvas>
+    </section>
+
+    <section id="showcase-cloth-violet" class="showcase showcase-cloth" data-cloth="violet">
       <div class="showcase-inner">
         <h2 class="section-title showcase-title">Gradient Clouds</h2>
         <p class="showcase-sub">A material study — iridescent slabs drifting through the void, colored from the Figma frames.</p>
@@ -158,6 +166,6 @@
     }
   </script>
   <script type="module" src="clouds.js?v=37"></script>
-  <script type="module" src="cloth.js?v=19"></script>
+  <script type="module" src="cloth.js?v=21"></script>
 </body>
 </html>

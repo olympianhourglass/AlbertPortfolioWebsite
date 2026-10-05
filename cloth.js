@@ -3,13 +3,58 @@
 
 import * as THREE from "three";
 
-const section = document.getElementById("showcase-cloth");
-const canvas = section?.querySelector(".cloth-canvas");
+const reduceMotion = window.matchMedia(
+  "(prefers-reduced-motion: reduce)"
+).matches;
 
-if (canvas && section) {
-  const reduceMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
+const looks = {
+  silk: {
+    exposure: 1.08,
+    phase: 0,
+    base: new THREE.Vector3(0.769, 0.749, 0.714),
+    sheen: new THREE.Vector3(1.0, 0.839, 0.91),
+    iridA: new THREE.Vector3(0.55, 0.75, 0.94),
+    iridB: new THREE.Vector3(1.0, 0.68, 0.82),
+    envBot: new THREE.Vector3(0.96, 0.97, 0.91),
+    envMid: new THREE.Vector3(0.16, 0.13, 0.2),
+    envTop: new THREE.Vector3(0.73, 0.84, 0.9),
+    envPink: new THREE.Vector3(1.0, 0.55, 0.78),
+    key: new THREE.Vector3(1.0, 0.894, 0.831).multiplyScalar(1.12),
+    cool: new THREE.Vector3(0.659, 0.8, 0.878).multiplyScalar(1.2),
+    blush: new THREE.Vector3(1.0, 0.769, 0.847).multiplyScalar(0.72),
+    hemLo: new THREE.Vector3(0.4, 0.52, 0.62),
+    hemHi: new THREE.Vector3(0.96, 0.93, 0.95),
+    iridAmt: 0.26,
+    envMix: 0.58,
+    diffAmt: 0.58,
+  },
+  violet: {
+    exposure: 1.12,
+    phase: 1.7,
+    base: new THREE.Vector3(0.72, 0.68, 0.76),
+    sheen: new THREE.Vector3(0.92, 0.68, 1.0),
+    iridA: new THREE.Vector3(0.38, 0.36, 0.98),
+    iridB: new THREE.Vector3(0.98, 0.36, 0.76),
+    envBot: new THREE.Vector3(0.94, 0.9, 0.96),
+    envMid: new THREE.Vector3(0.14, 0.08, 0.26),
+    envTop: new THREE.Vector3(0.7, 0.66, 0.94),
+    envPink: new THREE.Vector3(0.82, 0.42, 1.0),
+    key: new THREE.Vector3(0.96, 0.86, 0.9).multiplyScalar(1.06),
+    cool: new THREE.Vector3(0.52, 0.5, 0.96).multiplyScalar(1.32),
+    blush: new THREE.Vector3(1.0, 0.52, 0.84).multiplyScalar(1.05),
+    hemLo: new THREE.Vector3(0.3, 0.22, 0.48),
+    hemHi: new THREE.Vector3(0.9, 0.82, 0.98),
+    iridAmt: 0.58,
+    envMix: 0.76,
+    diffAmt: 0.42,
+  },
+};
+
+function initCloth(section) {
+  const canvas = section.querySelector(".cloth-canvas");
+  if (!canvas) return;
+
+  const look = looks[section.dataset.cloth] || looks.silk;
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -19,7 +64,7 @@ if (canvas && section) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.08;
+  renderer.toneMappingExposure = look.exposure;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 80);
@@ -35,6 +80,7 @@ if (canvas && section) {
   const REST_X = WIDTH / SEG_X;
   const REST_Y = HEIGHT / SEG_Y;
   const REST_S = Math.hypot(REST_X, REST_Y);
+  const phase = look.phase;
 
   const particles = [];
   for (let y = 0; y < ROWS; y++) {
@@ -42,9 +88,9 @@ if (canvas && section) {
       const px = (x / SEG_X - 0.5) * WIDTH;
       const py = (0.5 - y / SEG_Y) * HEIGHT;
       const z =
-        Math.sin(px * 0.7) * 0.55 +
-        Math.sin(px * 1.35 + py * 0.4) * 0.22 +
-        Math.cos(px * 0.28 + py * 0.7) * 0.16;
+        Math.sin(px * 0.7 + phase) * 0.55 +
+        Math.sin(px * 1.35 + py * 0.4 + phase) * 0.22 +
+        Math.cos(px * 0.28 + py * 0.7 + phase) * 0.16;
       particles.push({
         x: px,
         y: py,
@@ -102,10 +148,10 @@ if (canvas && section) {
     const grav = reduceMotion ? 0 : -26;
     const windX = reduceMotion
       ? 0
-      : Math.sin(t * 0.38) * 2.4 + Math.sin(t * 0.91) * 1.1;
+      : Math.sin(t * 0.38 + phase) * 2.4 + Math.sin(t * 0.91 + phase) * 1.1;
     const windZ = reduceMotion
       ? 0
-      : Math.cos(t * 0.26) * 1.4 + Math.sin(t * 0.67) * 0.8;
+      : Math.cos(t * 0.26 + phase) * 1.4 + Math.sin(t * 0.67 + phase) * 0.8;
     const damp = 0.982;
     const dt2 = dt * dt;
 
@@ -258,6 +304,22 @@ if (canvas && section) {
     uClothRes: { value: new THREE.Vector2(COLS, ROWS) },
     uRot: { value: new THREE.Matrix3() },
     uTime: { value: 0 },
+    uBase: { value: look.base },
+    uSheen: { value: look.sheen },
+    uIridA: { value: look.iridA },
+    uIridB: { value: look.iridB },
+    uEnvBot: { value: look.envBot },
+    uEnvMid: { value: look.envMid },
+    uEnvTop: { value: look.envTop },
+    uEnvPink: { value: look.envPink },
+    uKeyCol: { value: look.key },
+    uCoolCol: { value: look.cool },
+    uBlushCol: { value: look.blush },
+    uHemLo: { value: look.hemLo },
+    uHemHi: { value: look.hemHi },
+    uIridAmt: { value: look.iridAmt },
+    uEnvMix: { value: look.envMix },
+    uDiffAmt: { value: look.diffAmt },
   };
 
   const material = new THREE.ShaderMaterial({
@@ -280,6 +342,22 @@ if (canvas && section) {
       uniform vec2 uClothRes;
       uniform mat3 uRot;
       uniform float uTime;
+      uniform vec3 uBase;
+      uniform vec3 uSheen;
+      uniform vec3 uIridA;
+      uniform vec3 uIridB;
+      uniform vec3 uEnvBot;
+      uniform vec3 uEnvMid;
+      uniform vec3 uEnvTop;
+      uniform vec3 uEnvPink;
+      uniform vec3 uKeyCol;
+      uniform vec3 uCoolCol;
+      uniform vec3 uBlushCol;
+      uniform vec3 uHemLo;
+      uniform vec3 uHemHi;
+      uniform float uIridAmt;
+      uniform float uEnvMix;
+      uniform float uDiffAmt;
       varying vec2 vUv;
       varying vec3 vPos;
       ${sampleGLSL}
@@ -297,36 +375,24 @@ if (canvas && section) {
 
       vec3 envColor(vec3 r) {
         float v = r.y * 0.5 + 0.5;
-        vec3 bot = vec3(0.96, 0.97, 0.91);
-        vec3 mid = vec3(0.16, 0.13, 0.20);
-        vec3 top = vec3(0.73, 0.84, 0.90);
-        vec3 c = mix(bot, mid, smoothstep(0.0, 0.48, v));
-        c = mix(c, top, smoothstep(0.48, 1.0, v));
-        c = mix(c, vec3(1.0, 0.55, 0.78), smoothstep(0.35, 1.0, r.x * 0.35 + v * 0.4));
+        vec3 c = mix(uEnvBot, uEnvMid, smoothstep(0.0, 0.48, v));
+        c = mix(c, uEnvTop, smoothstep(0.48, 1.0, v));
+        c = mix(c, uEnvPink, smoothstep(0.35, 1.0, r.x * 0.35 + v * 0.4));
         return c;
       }
 
       vec3 shadeSilk(vec3 n, vec3 v, vec3 pW) {
-        vec3 base = vec3(0.769, 0.749, 0.714);
-        vec3 sheenCol = vec3(1.0, 0.839, 0.910);
         float ndv = max(dot(n, v), 0.0);
         float fres = pow(1.0 - ndv, 3.2);
         float film = sin(ndv * (7.6 + sin(uTime * 0.22) * 0.8) + 0.35);
-        vec3 irid = mix(
-          vec3(0.55, 0.75, 0.94),
-          vec3(1.0, 0.68, 0.82),
-          film * 0.5 + 0.5
-        );
+        vec3 irid = mix(uIridA, uIridB, film * 0.5 + 0.5);
 
-        vec3 col = base * 0.14;
-        col += mix(vec3(0.40, 0.52, 0.62), vec3(0.96, 0.93, 0.95), n.y * 0.5 + 0.5) * base * 0.18;
+        vec3 col = uBase * 0.14;
+        col += mix(uHemLo, uHemHi, n.y * 0.5 + 0.5) * uBase * 0.18;
 
         vec3 l1 = normalize(vec3(-7.0, 5.0, 4.0) - pW);
         vec3 l2 = normalize(vec3(8.0, 1.0, 3.0) - pW);
         vec3 l3 = normalize(vec3(2.0, -6.0, 4.0) - pW);
-        vec3 c1 = vec3(1.00, 0.894, 0.831) * 1.12;
-        vec3 c2 = vec3(0.659, 0.800, 0.878) * 1.20;
-        vec3 c3 = vec3(1.00, 0.769, 0.847) * 0.72;
 
         vec3 h1 = normalize(l1 + v);
         vec3 h2 = normalize(l2 + v);
@@ -335,17 +401,17 @@ if (canvas && section) {
         float d2 = max(dot(n, l2), 0.0);
         float d3 = max(dot(n, l3), 0.0);
 
-        col += base * (d1 * c1 + d2 * c2 + d3 * c3) * 0.58;
+        col += uBase * (d1 * uKeyCol + d2 * uCoolCol + d3 * uBlushCol) * uDiffAmt;
         col += irid * (
-          pow(max(dot(n, h1), 0.0), 52.0) * c1 +
-          pow(max(dot(n, h2), 0.0), 52.0) * c2 +
-          pow(max(dot(n, h3), 0.0), 40.0) * c3
-        ) * 0.26;
-        col += sheenCol * pow(1.0 - ndv, 2.6) * (d1 + d2 + d3) * 0.12;
+          pow(max(dot(n, h1), 0.0), 52.0) * uKeyCol +
+          pow(max(dot(n, h2), 0.0), 52.0) * uCoolCol +
+          pow(max(dot(n, h3), 0.0), 40.0) * uBlushCol
+        ) * uIridAmt;
+        col += uSheen * pow(1.0 - ndv, 2.6) * (d1 + d2 + d3) * 0.12;
 
         vec3 r = reflect(-v, n);
-        col += envColor(r) * mix(base, irid, 0.58) * (0.12 + fres * 0.40);
-        col += sheenCol * fres * 0.18;
+        col += envColor(r) * mix(uBase, irid, uEnvMix) * (0.12 + fres * 0.40);
+        col += uSheen * fres * 0.18;
         return col;
       }
 
@@ -535,3 +601,5 @@ if (canvas && section) {
   }
   loop();
 }
+
+document.querySelectorAll(".showcase-cloth").forEach(initCloth);
