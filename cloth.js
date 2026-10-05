@@ -1,6 +1,6 @@
 // Iridescent silk cloth — same Figma hues as the cloud slabs.
-// Verlet spring mesh, pinned at the top, grab-and-drag anywhere else.
-// Sim stays medium-res; a bicubic display mesh is what you see.
+// Verlet sim on a coarse grid; the visible surface is GPU-bicubic
+// so lighting never picks up the square mesh.
 
 import * as THREE from "three";
 
@@ -84,49 +84,15 @@ if (canvas && section) {
   blush.position.set(2, -6, 4);
   scene.add(blush);
 
-  const SEG_X = 80;
-  const SEG_Y = 50;
+  const SEG_X = 64;
+  const SEG_Y = 40;
   const COLS = SEG_X + 1;
   const ROWS = SEG_Y + 1;
-  const SUB = 4;
   const WIDTH = 15.5;
   const HEIGHT = 9.4;
   const REST_X = WIDTH / SEG_X;
   const REST_Y = HEIGHT / SEG_Y;
   const REST_S = Math.hypot(REST_X, REST_Y);
-
-  const geometry = new THREE.PlaneGeometry(
-    WIDTH,
-    HEIGHT,
-    SEG_X * SUB,
-    SEG_Y * SUB
-  );
-
-  const material = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(0xb0b6bc),
-    metalness: 0.22,
-    roughness: 0.1,
-    iridescence: 1.0,
-    iridescenceIOR: 1.38,
-    iridescenceThicknessRange: [180, 520],
-    sheen: 1.0,
-    sheenRoughness: 0.07,
-    sheenColor: new THREE.Color(0xffcce0),
-    clearcoat: 0.4,
-    clearcoatRoughness: 0.14,
-    envMap: envRT.texture,
-    envMapIntensity: 2.05,
-    side: THREE.DoubleSide,
-  });
-
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.rotation.x = -0.36;
-  mesh.frustumCulled = false;
-  scene.add(mesh);
-
-  const posAttr = geometry.attributes.position;
-  const DCOLS = SEG_X * SUB + 1;
-  const DROWS = SEG_Y * SUB + 1;
 
   const particles = [];
   for (let y = 0; y < ROWS; y++) {
@@ -222,95 +188,126 @@ if (canvas && section) {
     }
   }
 
-  function clampi(v, lo, hi) {
-    return v < lo ? lo : v > hi ? hi : v;
-  }
+  const texData = new Float32Array(COLS * ROWS * 4);
+  const posTex = new THREE.DataTexture(
+    texData,
+    COLS,
+    ROWS,
+    THREE.RGBAFormat,
+    THREE.FloatType
+  );
+  posTex.magFilter = THREE.NearestFilter;
+  posTex.minFilter = THREE.NearestFilter;
+  posTex.wrapS = THREE.ClampToEdgeWrapping;
+  posTex.wrapT = THREE.ClampToEdgeWrapping;
+  posTex.generateMipmaps = false;
+  posTex.colorSpace = THREE.NoColorSpace;
+  posTex.needsUpdate = true;
 
-  function fade(t) {
-    return t * t * t * (t * (t * 6 - 15) + 10);
-  }
-
-  function sampleComp(u, v, key) {
-    const x = Math.floor(u);
-    const y = Math.floor(v);
-    const tx = fade(u - x);
-    const ty = fade(v - y);
-    const get = (ix, iy) =>
-      particles[clampi(iy, 0, SEG_Y) * COLS + clampi(ix, 0, SEG_X)][key];
-    const a = get(x, y);
-    const b = get(x + 1, y);
-    const c = get(x, y + 1);
-    const d = get(x + 1, y + 1);
-    return a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
-  }
-
-  const smoothX = new Float32Array(DCOLS * DROWS);
-  const smoothY = new Float32Array(DCOLS * DROWS);
-  const smoothZ = new Float32Array(DCOLS * DROWS);
-
-  function writeGeometry() {
-    const count = DCOLS * DROWS;
-    for (let dy = 0; dy < DROWS; dy++) {
-      const v = dy / SUB;
-      for (let dx = 0; dx < DCOLS; dx++) {
-        const i = dy * DCOLS + dx;
-        smoothX[i] = sampleComp(dx / SUB, v, "x");
-        smoothY[i] = sampleComp(dx / SUB, v, "y");
-        smoothZ[i] = sampleComp(dx / SUB, v, "z");
+  function writeTexture() {
+    for (let y = 0; y < ROWS; y++) {
+      const pRow = SEG_Y - y;
+      for (let x = 0; x < COLS; x++) {
+        const p = particles[pRow * COLS + x];
+        const i = (y * COLS + x) * 4;
+        texData[i] = p.x;
+        texData[i + 1] = p.y;
+        texData[i + 2] = p.z;
+        texData[i + 3] = 1;
       }
     }
+    posTex.needsUpdate = true;
+  }
 
-    for (let pass = 0; pass < 3; pass++) {
-      for (let dy = 0; dy < DROWS; dy++) {
-        for (let dx = 0; dx < DCOLS; dx++) {
-          const i = dy * DCOLS + dx;
-          let ax = 0;
-          let ay = 0;
-          let az = 0;
-          let n = 0;
-          if (dx > 0) {
-            ax += smoothX[i - 1];
-            ay += smoothY[i - 1];
-            az += smoothZ[i - 1];
-            n += 1;
-          }
-          if (dx < DCOLS - 1) {
-            ax += smoothX[i + 1];
-            ay += smoothY[i + 1];
-            az += smoothZ[i + 1];
-            n += 1;
-          }
-          if (dy > 0) {
-            ax += smoothX[i - DCOLS];
-            ay += smoothY[i - DCOLS];
-            az += smoothZ[i - DCOLS];
-            n += 1;
-          }
-          if (dy < DROWS - 1) {
-            ax += smoothX[i + DCOLS];
-            ay += smoothY[i + DCOLS];
-            az += smoothZ[i + DCOLS];
-            n += 1;
-          }
-          posAttr.setXYZ(
-            i,
-            smoothX[i] * 0.35 + (ax / n) * 0.65,
-            smoothY[i] * 0.35 + (ay / n) * 0.65,
-            smoothZ[i] * 0.35 + (az / n) * 0.65
-          );
-        }
+  const material = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color(0xb0b6bc),
+    metalness: 0.22,
+    roughness: 0.1,
+    iridescence: 1.0,
+    iridescenceIOR: 1.38,
+    iridescenceThicknessRange: [180, 520],
+    sheen: 1.0,
+    sheenRoughness: 0.07,
+    sheenColor: new THREE.Color(0xffcce0),
+    clearcoat: 0.4,
+    clearcoatRoughness: 0.14,
+    envMap: envRT.texture,
+    envMapIntensity: 2.05,
+    side: THREE.DoubleSide,
+  });
+
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uPosTex = { value: posTex };
+    shader.uniforms.uClothRes = { value: new THREE.Vector2(COLS, ROWS) };
+    shader.vertexShader =
+      `
+      uniform sampler2D uPosTex;
+      uniform vec2 uClothRes;
+      vec3 clothTexel(vec2 cell) {
+        vec2 uv = (clamp(cell, vec2(0.0), uClothRes - 1.0) + 0.5) / uClothRes;
+        return texture2D(uPosTex, uv).xyz;
       }
-      if (pass < 2) {
-        for (let i = 0; i < count; i++) {
-          smoothX[i] = posAttr.getX(i);
-          smoothY[i] = posAttr.getY(i);
-          smoothZ[i] = posAttr.getZ(i);
-        }
+      vec3 sampleCloth(vec2 uv) {
+        vec2 loc = clamp(uv, 0.0, 1.0) * (uClothRes - 1.0);
+        vec2 i0 = floor(loc);
+        vec2 f = loc - i0;
+        f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+        vec3 a = clothTexel(i0);
+        vec3 b = clothTexel(i0 + vec2(1.0, 0.0));
+        vec3 c = clothTexel(i0 + vec2(0.0, 1.0));
+        vec3 d = clothTexel(i0 + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
       }
+      ` +
+      shader.vertexShader
+        .replace(
+          "#include <beginnormal_vertex>",
+          `
+          vec2 clothUv = vec2(uv.x, uv.y);
+          vec2 texel = 1.0 / uClothRes;
+          vec3 pL = sampleCloth(clothUv - vec2(texel.x, 0.0));
+          vec3 pR = sampleCloth(clothUv + vec2(texel.x, 0.0));
+          vec3 pD = sampleCloth(clothUv - vec2(0.0, texel.y));
+          vec3 pU = sampleCloth(clothUv + vec2(0.0, texel.y));
+          vec3 objectNormal = normalize(cross(pR - pL, pU - pD));
+          if (length(objectNormal) < 0.001) objectNormal = vec3(0.0, 0.0, 1.0);
+          #ifdef USE_TANGENT
+            vec3 objectTangent = vec3( tangent.xyz );
+          #endif
+          `
+        )
+        .replace(
+          "#include <begin_vertex>",
+          `
+          vec3 transformed = sampleCloth(vec2(uv.x, uv.y));
+          `
+        );
+  };
+  material.customProgramCacheKey = () => "cloth-smooth-v2";
+
+  const displayGeo = new THREE.PlaneGeometry(WIDTH, HEIGHT, 220, 140);
+  const mesh = new THREE.Mesh(displayGeo, material);
+  mesh.rotation.x = -0.36;
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+
+  const hitGeo = new THREE.PlaneGeometry(WIDTH, HEIGHT, SEG_X, SEG_Y);
+  const hitMesh = new THREE.Mesh(
+    hitGeo,
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  hitMesh.rotation.copy(mesh.rotation);
+  hitMesh.frustumCulled = false;
+  scene.add(hitMesh);
+  const hitPos = hitGeo.attributes.position;
+
+  function writeHitMesh() {
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      hitPos.setXYZ(i, p.x, p.y, p.z);
     }
-
-    posAttr.needsUpdate = true;
-    geometry.computeVertexNormals();
+    hitPos.needsUpdate = true;
+    hitGeo.computeBoundingSphere();
   }
 
   function resize() {
@@ -384,9 +381,9 @@ if (canvas && section) {
     if (event.button !== 0) return;
     pointerToNDC(event);
     raycaster.setFromCamera(ptr, camera);
-    const hits = raycaster.intersectObject(mesh);
+    const hits = raycaster.intersectObject(hitMesh);
     if (!hits.length) return;
-    grabIndex = nearestParticle(mesh.worldToLocal(hits[0].point.clone()));
+    grabIndex = nearestParticle(hitMesh.worldToLocal(hits[0].point.clone()));
     camera.getWorldDirection(camDir);
     dragPlane.setFromNormalAndCoplanarPoint(camDir, hits[0].point);
     dragging = true;
@@ -400,7 +397,7 @@ if (canvas && section) {
     pointerToNDC(event);
     raycaster.setFromCamera(ptr, camera);
     if (!raycaster.ray.intersectPlane(dragPlane, hit)) return;
-    pullToward(grabIndex, mesh.worldToLocal(hit.clone()));
+    pullToward(grabIndex, hitMesh.worldToLocal(hit.clone()));
   });
 
   function endDrag(event) {
@@ -429,7 +426,8 @@ if (canvas && section) {
   io.observe(section);
 
   for (let i = 0; i < 110; i++) stepSim(1 / 50, i * 0.035);
-  writeGeometry();
+  writeTexture();
+  writeHitMesh();
   renderer.render(scene, camera);
 
   function loop() {
@@ -439,7 +437,8 @@ if (canvas && section) {
     const dt = Math.min(0.033, Math.max(1 / 120, t - lastTime));
     lastTime = t;
     if (!reduceMotion || dragging) stepSim(dt, t);
-    writeGeometry();
+    writeTexture();
+    writeHitMesh();
     const shimmer = 250 + Math.sin(t * 0.22) * 40;
     material.iridescenceThicknessRange = [shimmer, shimmer + 220];
     renderer.render(scene, camera);
