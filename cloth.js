@@ -100,7 +100,9 @@ if (canvas && section) {
       const px = (x / SEG_X - 0.5) * WIDTH;
       const py = (0.5 - y / SEG_Y) * HEIGHT;
       const z =
-        Math.sin(px * 0.48 + py * 0.36) * 0.4 + Math.cos(px * 0.22) * 0.14;
+        Math.sin(px * 0.7) * 0.55 +
+        Math.sin(px * 1.35 + py * 0.4) * 0.22 +
+        Math.cos(px * 0.28 + py * 0.7) * 0.16;
       particles.push({
         x: px,
         y: py,
@@ -155,9 +157,9 @@ if (canvas && section) {
   }
 
   function stepSim(dt, t) {
-    const grav = reduceMotion ? 0 : -22;
-    const windX = reduceMotion ? 0 : Math.sin(t * 0.38) * 3.2;
-    const windZ = reduceMotion ? 0 : Math.cos(t * 0.26) * 1.8;
+    const grav = reduceMotion ? 0 : -26;
+    const windX = reduceMotion ? 0 : Math.sin(t * 0.38) * 2.4 + Math.sin(t * 0.91) * 1.1;
+    const windZ = reduceMotion ? 0 : Math.cos(t * 0.26) * 1.4 + Math.sin(t * 0.67) * 0.8;
     const damp = 0.982;
     const dt2 = dt * dt;
 
@@ -189,6 +191,8 @@ if (canvas && section) {
   }
 
   const texData = new Float32Array(COLS * ROWS * 4);
+  const blurA = new Float32Array(COLS * ROWS * 3);
+  const blurB = new Float32Array(COLS * ROWS * 3);
   const posTex = new THREE.DataTexture(
     texData,
     COLS,
@@ -204,35 +208,71 @@ if (canvas && section) {
   posTex.colorSpace = THREE.NoColorSpace;
   posTex.needsUpdate = true;
 
+  function blurField(src, dst) {
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        let sx = 0;
+        let sy = 0;
+        let sz = 0;
+        let w = 0;
+        for (let oy = -1; oy <= 1; oy++) {
+          const yy = y + oy;
+          if (yy < 0 || yy >= ROWS) continue;
+          for (let ox = -1; ox <= 1; ox++) {
+            const xx = x + ox;
+            if (xx < 0 || xx >= COLS) continue;
+            const wt = ox === 0 && oy === 0 ? 4 : ox === 0 || oy === 0 ? 2 : 1;
+            const j = (yy * COLS + xx) * 3;
+            sx += src[j] * wt;
+            sy += src[j + 1] * wt;
+            sz += src[j + 2] * wt;
+            w += wt;
+          }
+        }
+        const i = (y * COLS + x) * 3;
+        dst[i] = sx / w;
+        dst[i + 1] = sy / w;
+        dst[i + 2] = sz / w;
+      }
+    }
+  }
+
   function writeTexture() {
     for (let y = 0; y < ROWS; y++) {
       const pRow = SEG_Y - y;
       for (let x = 0; x < COLS; x++) {
         const p = particles[pRow * COLS + x];
-        const i = (y * COLS + x) * 4;
-        texData[i] = p.x;
-        texData[i + 1] = p.y;
-        texData[i + 2] = p.z;
-        texData[i + 3] = 1;
+        const i = (y * COLS + x) * 3;
+        blurA[i] = p.x;
+        blurA[i + 1] = p.y;
+        blurA[i + 2] = p.z;
       }
+    }
+    blurField(blurA, blurB);
+    blurField(blurB, blurA);
+    for (let i = 0; i < COLS * ROWS; i++) {
+      texData[i * 4] = blurA[i * 3];
+      texData[i * 4 + 1] = blurA[i * 3 + 1];
+      texData[i * 4 + 2] = blurA[i * 3 + 2];
+      texData[i * 4 + 3] = 1;
     }
     posTex.needsUpdate = true;
   }
 
   const material = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(0xb0b6bc),
-    metalness: 0.22,
-    roughness: 0.1,
-    iridescence: 1.0,
-    iridescenceIOR: 1.38,
-    iridescenceThicknessRange: [180, 520],
+    color: new THREE.Color(0xc4bfb6),
+    metalness: 0.12,
+    roughness: 0.18,
+    iridescence: 0.55,
+    iridescenceIOR: 1.28,
+    iridescenceThicknessRange: [240, 420],
     sheen: 1.0,
-    sheenRoughness: 0.07,
-    sheenColor: new THREE.Color(0xffcce0),
-    clearcoat: 0.4,
-    clearcoatRoughness: 0.14,
+    sheenRoughness: 0.12,
+    sheenColor: new THREE.Color(0xffd6e8),
+    clearcoat: 0.18,
+    clearcoatRoughness: 0.28,
     envMap: envRT.texture,
-    envMapIntensity: 2.05,
+    envMapIntensity: 1.55,
     side: THREE.DoubleSide,
   });
 
@@ -263,12 +303,11 @@ if (canvas && section) {
         .replace(
           "#include <beginnormal_vertex>",
           `
-          vec2 clothUv = vec2(uv.x, uv.y);
-          vec2 texel = 1.0 / uClothRes;
-          vec3 pL = sampleCloth(clothUv - vec2(texel.x, 0.0));
-          vec3 pR = sampleCloth(clothUv + vec2(texel.x, 0.0));
-          vec3 pD = sampleCloth(clothUv - vec2(0.0, texel.y));
-          vec3 pU = sampleCloth(clothUv + vec2(0.0, texel.y));
+          vec2 texel = 1.25 / uClothRes;
+          vec3 pL = sampleCloth(uv - vec2(texel.x, 0.0));
+          vec3 pR = sampleCloth(uv + vec2(texel.x, 0.0));
+          vec3 pD = sampleCloth(uv - vec2(0.0, texel.y));
+          vec3 pU = sampleCloth(uv + vec2(0.0, texel.y));
           vec3 objectNormal = normalize(cross(pR - pL, pU - pD));
           if (length(objectNormal) < 0.001) objectNormal = vec3(0.0, 0.0, 1.0);
           #ifdef USE_TANGENT
@@ -279,13 +318,13 @@ if (canvas && section) {
         .replace(
           "#include <begin_vertex>",
           `
-          vec3 transformed = sampleCloth(vec2(uv.x, uv.y));
+          vec3 transformed = sampleCloth(uv);
           `
         );
   };
-  material.customProgramCacheKey = () => "cloth-smooth-v2";
+  material.customProgramCacheKey = () => "cloth-realistic-v5";
 
-  const displayGeo = new THREE.PlaneGeometry(WIDTH, HEIGHT, 220, 140);
+  const displayGeo = new THREE.PlaneGeometry(WIDTH, HEIGHT, 360, 230);
   const mesh = new THREE.Mesh(displayGeo, material);
   mesh.rotation.x = -0.36;
   mesh.frustumCulled = false;
