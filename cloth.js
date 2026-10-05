@@ -22,31 +22,37 @@ const looks = {
     key: new THREE.Vector3(1.0, 0.894, 0.831).multiplyScalar(1.12),
     cool: new THREE.Vector3(0.659, 0.8, 0.878).multiplyScalar(1.2),
     blush: new THREE.Vector3(1.0, 0.769, 0.847).multiplyScalar(0.72),
+    iridC: new THREE.Vector3(0.82, 0.8, 0.68),
     hemLo: new THREE.Vector3(0.4, 0.52, 0.62),
     hemHi: new THREE.Vector3(0.96, 0.93, 0.95),
     iridAmt: 0.26,
     envMix: 0.58,
     diffAmt: 0.58,
+    filmFreq: 7.6,
+    filmBody: 0,
   },
   violet: {
-    exposure: 1.12,
+    exposure: 1.06,
     phase: 1.7,
-    base: new THREE.Vector3(0.72, 0.68, 0.76),
-    sheen: new THREE.Vector3(0.92, 0.68, 1.0),
-    iridA: new THREE.Vector3(0.38, 0.36, 0.98),
-    iridB: new THREE.Vector3(0.98, 0.36, 0.76),
-    envBot: new THREE.Vector3(0.94, 0.9, 0.96),
-    envMid: new THREE.Vector3(0.14, 0.08, 0.26),
-    envTop: new THREE.Vector3(0.7, 0.66, 0.94),
-    envPink: new THREE.Vector3(0.82, 0.42, 1.0),
-    key: new THREE.Vector3(0.96, 0.86, 0.9).multiplyScalar(1.06),
-    cool: new THREE.Vector3(0.52, 0.5, 0.96).multiplyScalar(1.32),
-    blush: new THREE.Vector3(1.0, 0.52, 0.84).multiplyScalar(1.05),
-    hemLo: new THREE.Vector3(0.3, 0.22, 0.48),
-    hemHi: new THREE.Vector3(0.9, 0.82, 0.98),
-    iridAmt: 0.58,
-    envMix: 0.76,
-    diffAmt: 0.42,
+    base: new THREE.Vector3(0.76, 0.74, 0.71),
+    sheen: new THREE.Vector3(0.96, 0.86, 0.92),
+    iridA: new THREE.Vector3(0.64, 0.34, 0.9),
+    iridB: new THREE.Vector3(0.96, 0.48, 0.72),
+    iridC: new THREE.Vector3(0.4, 0.78, 0.44),
+    envBot: new THREE.Vector3(0.95, 0.96, 0.88),
+    envMid: new THREE.Vector3(0.14, 0.16, 0.15),
+    envTop: new THREE.Vector3(0.7, 0.8, 0.82),
+    envPink: new THREE.Vector3(0.92, 0.56, 0.8),
+    key: new THREE.Vector3(1.0, 0.9, 0.82).multiplyScalar(0.98),
+    cool: new THREE.Vector3(0.6, 0.74, 0.86).multiplyScalar(1.12),
+    blush: new THREE.Vector3(0.95, 0.62, 0.84).multiplyScalar(0.78),
+    hemLo: new THREE.Vector3(0.38, 0.46, 0.44),
+    hemHi: new THREE.Vector3(0.96, 0.94, 0.9),
+    iridAmt: 0.52,
+    envMix: 0.46,
+    diffAmt: 0.5,
+    filmFreq: 4.6,
+    filmBody: 1,
   },
 };
 
@@ -308,6 +314,8 @@ function initCloth(section) {
     uSheen: { value: look.sheen },
     uIridA: { value: look.iridA },
     uIridB: { value: look.iridB },
+    uIridC: { value: look.iridC },
+    uFilmFreq: { value: look.filmFreq },
     uEnvBot: { value: look.envBot },
     uEnvMid: { value: look.envMid },
     uEnvTop: { value: look.envTop },
@@ -320,6 +328,7 @@ function initCloth(section) {
     uIridAmt: { value: look.iridAmt },
     uEnvMix: { value: look.envMix },
     uDiffAmt: { value: look.diffAmt },
+    uFilmBody: { value: look.filmBody },
   };
 
   const material = new THREE.ShaderMaterial({
@@ -346,6 +355,8 @@ function initCloth(section) {
       uniform vec3 uSheen;
       uniform vec3 uIridA;
       uniform vec3 uIridB;
+      uniform vec3 uIridC;
+      uniform float uFilmFreq;
       uniform vec3 uEnvBot;
       uniform vec3 uEnvMid;
       uniform vec3 uEnvTop;
@@ -358,6 +369,7 @@ function initCloth(section) {
       uniform float uIridAmt;
       uniform float uEnvMix;
       uniform float uDiffAmt;
+      uniform float uFilmBody;
       varying vec2 vUv;
       varying vec3 vPos;
       ${sampleGLSL}
@@ -381,11 +393,25 @@ function initCloth(section) {
         return c;
       }
 
+      vec3 filmHue(float ndv, vec3 n) {
+        float w = ndv * (uFilmFreq + sin(uTime * 0.22) * 0.7) + n.x * 3.2 + n.y * 2.4 + 0.35;
+        float a = 0.5 + 0.5 * sin(w);
+        float b = 0.5 + 0.5 * sin(w + 2.094);
+        float c = 0.5 + 0.5 * sin(w + 4.189);
+        a *= a;
+        b *= b;
+        c *= c;
+        vec3 irid = (uIridA * a + uIridB * b + uIridC * c) / max(a + b + c, 1e-4);
+        float inside = smoothstep(0.18, 0.72, ndv);
+        irid = mix(irid, uIridC, inside * 0.2 * uFilmBody);
+        irid = mix(irid, uIridA, pow(1.0 - ndv, 2.2) * 0.36);
+        return irid;
+      }
+
       vec3 shadeSilk(vec3 n, vec3 v, vec3 pW) {
         float ndv = max(dot(n, v), 0.0);
         float fres = pow(1.0 - ndv, 3.2);
-        float film = sin(ndv * (7.6 + sin(uTime * 0.22) * 0.8) + 0.35);
-        vec3 irid = mix(uIridA, uIridB, film * 0.5 + 0.5);
+        vec3 irid = filmHue(ndv, n);
 
         vec3 col = uBase * 0.14;
         col += mix(uHemLo, uHemHi, n.y * 0.5 + 0.5) * uBase * 0.18;
@@ -402,11 +428,14 @@ function initCloth(section) {
         float d3 = max(dot(n, l3), 0.0);
 
         col += uBase * (d1 * uKeyCol + d2 * uCoolCol + d3 * uBlushCol) * uDiffAmt;
+        float specPow = mix(52.0, 22.0, uFilmBody);
         col += irid * (
-          pow(max(dot(n, h1), 0.0), 52.0) * uKeyCol +
-          pow(max(dot(n, h2), 0.0), 52.0) * uCoolCol +
-          pow(max(dot(n, h3), 0.0), 40.0) * uBlushCol
+          pow(max(dot(n, h1), 0.0), specPow) * uKeyCol +
+          pow(max(dot(n, h2), 0.0), specPow) * uCoolCol +
+          pow(max(dot(n, h3), 0.0), specPow * 0.75) * uBlushCol
         ) * uIridAmt;
+        col += irid * (d1 + d2 + d3) * 0.05 * uFilmBody;
+        col += uIridC * smoothstep(0.28, 0.68, ndv) * 0.035 * uFilmBody;
         col += uSheen * pow(1.0 - ndv, 2.6) * (d1 + d2 + d3) * 0.12;
 
         vec3 r = reflect(-v, n);
