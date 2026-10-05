@@ -1,6 +1,5 @@
-// Iridescent silk cloth — same Figma hues as the cloud slabs.
-// Verlet sim on a coarse grid; the visible surface is GPU-bicubic
-// so lighting never picks up the square mesh.
+// Iridescent silk cloth — Verlet field, dense displaced sheet,
+// shaded per-pixel from a cubic field so no grid reads as geometry.
 
 import * as THREE from "three";
 
@@ -20,72 +19,15 @@ if (canvas && section) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.18;
+  renderer.toneMappingExposure = 1.08;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 80);
-  camera.position.set(0, 0.15, 16);
-  camera.lookAt(0, -0.35, 0);
+  camera.position.set(0, 0.22, 17.6);
+  camera.lookAt(0, -0.05, 0);
 
-  function makeEnvTexture() {
-    const c = document.createElement("canvas");
-    c.width = 1024;
-    c.height = 512;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#0a0b10";
-    ctx.fillRect(0, 0, c.width, c.height);
-    const g = ctx.createLinearGradient(0, 0, c.width, c.height);
-    g.addColorStop(0.0, "rgba(186,214,230,0.85)");
-    g.addColorStop(0.2, "rgba(140,176,196,0.45)");
-    g.addColorStop(0.48, "rgba(36,28,48,0.12)");
-    g.addColorStop(0.7, "rgba(246,247,232,0.8)");
-    g.addColorStop(0.88, "rgba(255,196,220,0.7)");
-    g.addColorStop(1.0, "rgba(255,120,190,0.55)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, c.width, c.height);
-    [
-      { x: 0.22, y: 0.2, r: 0.34, col: "rgba(210,232,255,0.95)" },
-      { x: 0.7, y: 0.16, r: 0.28, col: "rgba(255,236,244,0.7)" },
-      { x: 0.52, y: 0.78, r: 0.32, col: "rgba(255,150,205,0.7)" },
-      { x: 0.84, y: 0.52, r: 0.22, col: "rgba(255,228,236,0.55)" },
-    ].forEach((b) => {
-      const rg = ctx.createRadialGradient(
-        b.x * c.width,
-        b.y * c.height,
-        0,
-        b.x * c.width,
-        b.y * c.height,
-        b.r * c.width
-      );
-      rg.addColorStop(0, b.col);
-      rg.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = rg;
-      ctx.fillRect(0, 0, c.width, c.height);
-    });
-    const tex = new THREE.CanvasTexture(c);
-    tex.mapping = THREE.EquirectangularReflectionMapping;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }
-
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envRT = pmrem.fromEquirectangular(makeEnvTexture());
-  scene.environment = envRT.texture;
-
-  scene.add(new THREE.HemisphereLight(0xf6eef4, 0x6b8ca1, 0.28));
-  scene.add(new THREE.AmbientLight(0xe4e0d8, 0.12));
-  const key = new THREE.DirectionalLight(0xffe4d4, 1.05);
-  key.position.set(-7, 5, 4);
-  scene.add(key);
-  const cool = new THREE.DirectionalLight(0xa8cce0, 1.15);
-  cool.position.set(8, 1, 3);
-  scene.add(cool);
-  const blush = new THREE.DirectionalLight(0xffc4d8, 0.7);
-  blush.position.set(2, -6, 4);
-  scene.add(blush);
-
-  const SEG_X = 64;
-  const SEG_Y = 40;
+  const SEG_X = 72;
+  const SEG_Y = 46;
   const COLS = SEG_X + 1;
   const ROWS = SEG_Y + 1;
   const WIDTH = 15.5;
@@ -158,8 +100,12 @@ if (canvas && section) {
 
   function stepSim(dt, t) {
     const grav = reduceMotion ? 0 : -26;
-    const windX = reduceMotion ? 0 : Math.sin(t * 0.38) * 2.4 + Math.sin(t * 0.91) * 1.1;
-    const windZ = reduceMotion ? 0 : Math.cos(t * 0.26) * 1.4 + Math.sin(t * 0.67) * 0.8;
+    const windX = reduceMotion
+      ? 0
+      : Math.sin(t * 0.38) * 2.4 + Math.sin(t * 0.91) * 1.1;
+    const windZ = reduceMotion
+      ? 0
+      : Math.cos(t * 0.26) * 1.4 + Math.sin(t * 0.67) * 0.8;
     const damp = 0.982;
     const dt2 = dt * dt;
 
@@ -174,8 +120,8 @@ if (canvas && section) {
       p.x += vx + windX * dt2;
       p.y += vy + grav * dt2;
       p.z += vz + windZ * dt2;
-      if (p.z > 1.8) p.z += (1.8 - p.z) * 0.25;
-      if (p.z < -1.5) p.z += (-1.5 - p.z) * 0.25;
+      if (p.z > 2.2) p.z += (2.2 - p.z) * 0.25;
+      if (p.z < -2.0) p.z += (-2.0 - p.z) * 0.25;
     }
 
     const iters = reduceMotion ? 4 : 8;
@@ -259,72 +205,162 @@ if (canvas && section) {
     posTex.needsUpdate = true;
   }
 
-  const material = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color(0xc4bfb6),
-    metalness: 0.12,
-    roughness: 0.18,
-    iridescence: 0.55,
-    iridescenceIOR: 1.28,
-    iridescenceThicknessRange: [240, 420],
-    sheen: 1.0,
-    sheenRoughness: 0.12,
-    sheenColor: new THREE.Color(0xffd6e8),
-    clearcoat: 0.18,
-    clearcoatRoughness: 0.28,
-    envMap: envRT.texture,
-    envMapIntensity: 1.55,
-    side: THREE.DoubleSide,
-  });
+  const sampleGLSL = `
+    vec3 clothTexel(vec2 cell) {
+      vec2 uv = (clamp(cell, vec2(0.0), uClothRes - 1.0) + 0.5) / uClothRes;
+      return texture2D(uPosTex, uv).xyz;
+    }
+    vec3 cr(vec3 p0, vec3 p1, vec3 p2, vec3 p3, float t) {
+      vec3 a = 2.0 * p1;
+      vec3 b = -p0 + p2;
+      vec3 c = 2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3;
+      vec3 d = -p0 + 3.0 * p1 - 3.0 * p2 + p3;
+      return 0.5 * (((d * t + c) * t + b) * t + a);
+    }
+    vec3 sampleCubic(vec2 uv) {
+      vec2 loc = clamp(uv, 0.0, 1.0) * (uClothRes - 1.0);
+      vec2 i0 = floor(loc);
+      vec2 f = loc - i0;
+      vec3 r0 = cr(
+        clothTexel(i0 + vec2(-1.0, -1.0)),
+        clothTexel(i0 + vec2( 0.0, -1.0)),
+        clothTexel(i0 + vec2( 1.0, -1.0)),
+        clothTexel(i0 + vec2( 2.0, -1.0)),
+        f.x
+      );
+      vec3 r1 = cr(
+        clothTexel(i0 + vec2(-1.0, 0.0)),
+        clothTexel(i0 + vec2( 0.0, 0.0)),
+        clothTexel(i0 + vec2( 1.0, 0.0)),
+        clothTexel(i0 + vec2( 2.0, 0.0)),
+        f.x
+      );
+      vec3 r2 = cr(
+        clothTexel(i0 + vec2(-1.0, 1.0)),
+        clothTexel(i0 + vec2( 0.0, 1.0)),
+        clothTexel(i0 + vec2( 1.0, 1.0)),
+        clothTexel(i0 + vec2( 2.0, 1.0)),
+        f.x
+      );
+      vec3 r3 = cr(
+        clothTexel(i0 + vec2(-1.0, 2.0)),
+        clothTexel(i0 + vec2( 0.0, 2.0)),
+        clothTexel(i0 + vec2( 1.0, 2.0)),
+        clothTexel(i0 + vec2( 2.0, 2.0)),
+        f.x
+      );
+      return cr(r0, r1, r2, r3, f.y);
+    }
+  `;
 
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uPosTex = { value: posTex };
-    shader.uniforms.uClothRes = { value: new THREE.Vector2(COLS, ROWS) };
-    shader.vertexShader =
-      `
+  const uniforms = {
+    uPosTex: { value: posTex },
+    uClothRes: { value: new THREE.Vector2(COLS, ROWS) },
+    uRot: { value: new THREE.Matrix3() },
+    uTime: { value: 0 },
+  };
+
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    side: THREE.DoubleSide,
+    vertexShader: `
       uniform sampler2D uPosTex;
       uniform vec2 uClothRes;
-      vec3 clothTexel(vec2 cell) {
-        vec2 uv = (clamp(cell, vec2(0.0), uClothRes - 1.0) + 0.5) / uClothRes;
-        return texture2D(uPosTex, uv).xyz;
+      varying vec2 vUv;
+      varying vec3 vPos;
+      ${sampleGLSL}
+      void main() {
+        vUv = uv;
+        vPos = sampleCubic(uv);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(vPos, 1.0);
       }
-      vec3 sampleCloth(vec2 uv) {
-        vec2 loc = clamp(uv, 0.0, 1.0) * (uClothRes - 1.0);
-        vec2 i0 = floor(loc);
-        vec2 f = loc - i0;
-        f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
-        vec3 a = clothTexel(i0);
-        vec3 b = clothTexel(i0 + vec2(1.0, 0.0));
-        vec3 c = clothTexel(i0 + vec2(0.0, 1.0));
-        vec3 d = clothTexel(i0 + vec2(1.0, 1.0));
-        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-      }
-      ` +
-      shader.vertexShader
-        .replace(
-          "#include <beginnormal_vertex>",
-          `
-          vec2 texel = 1.25 / uClothRes;
-          vec3 pL = sampleCloth(uv - vec2(texel.x, 0.0));
-          vec3 pR = sampleCloth(uv + vec2(texel.x, 0.0));
-          vec3 pD = sampleCloth(uv - vec2(0.0, texel.y));
-          vec3 pU = sampleCloth(uv + vec2(0.0, texel.y));
-          vec3 objectNormal = normalize(cross(pR - pL, pU - pD));
-          if (length(objectNormal) < 0.001) objectNormal = vec3(0.0, 0.0, 1.0);
-          #ifdef USE_TANGENT
-            vec3 objectTangent = vec3( tangent.xyz );
-          #endif
-          `
-        )
-        .replace(
-          "#include <begin_vertex>",
-          `
-          vec3 transformed = sampleCloth(uv);
-          `
-        );
-  };
-  material.customProgramCacheKey = () => "cloth-realistic-v5";
+    `,
+    fragmentShader: `
+      uniform sampler2D uPosTex;
+      uniform vec2 uClothRes;
+      uniform mat3 uRot;
+      uniform float uTime;
+      varying vec2 vUv;
+      varying vec3 vPos;
+      ${sampleGLSL}
 
-  const displayGeo = new THREE.PlaneGeometry(WIDTH, HEIGHT, 360, 230);
+      vec3 clothNormal(vec2 uv) {
+        vec2 e = 1.15 / uClothRes;
+        vec3 pL = sampleCubic(uv - vec2(e.x, 0.0));
+        vec3 pR = sampleCubic(uv + vec2(e.x, 0.0));
+        vec3 pD = sampleCubic(uv - vec2(0.0, e.y));
+        vec3 pU = sampleCubic(uv + vec2(0.0, e.y));
+        vec3 n = cross(pR - pL, pU - pD);
+        float len = length(n);
+        return len > 1e-5 ? n / len : vec3(0.0, 0.0, 1.0);
+      }
+
+      vec3 envColor(vec3 r) {
+        float v = r.y * 0.5 + 0.5;
+        vec3 bot = vec3(0.96, 0.97, 0.91);
+        vec3 mid = vec3(0.16, 0.13, 0.20);
+        vec3 top = vec3(0.73, 0.84, 0.90);
+        vec3 c = mix(bot, mid, smoothstep(0.0, 0.48, v));
+        c = mix(c, top, smoothstep(0.48, 1.0, v));
+        c = mix(c, vec3(1.0, 0.55, 0.78), smoothstep(0.35, 1.0, r.x * 0.35 + v * 0.4));
+        return c;
+      }
+
+      vec3 shadeSilk(vec3 n, vec3 v, vec3 pW) {
+        vec3 base = vec3(0.769, 0.749, 0.714);
+        vec3 sheenCol = vec3(1.0, 0.839, 0.910);
+        float ndv = max(dot(n, v), 0.0);
+        float fres = pow(1.0 - ndv, 3.2);
+        float film = sin(ndv * (7.6 + sin(uTime * 0.22) * 0.8) + 0.35);
+        vec3 irid = mix(
+          vec3(0.55, 0.75, 0.94),
+          vec3(1.0, 0.68, 0.82),
+          film * 0.5 + 0.5
+        );
+
+        vec3 col = base * 0.14;
+        col += mix(vec3(0.40, 0.52, 0.62), vec3(0.96, 0.93, 0.95), n.y * 0.5 + 0.5) * base * 0.18;
+
+        vec3 l1 = normalize(vec3(-7.0, 5.0, 4.0) - pW);
+        vec3 l2 = normalize(vec3(8.0, 1.0, 3.0) - pW);
+        vec3 l3 = normalize(vec3(2.0, -6.0, 4.0) - pW);
+        vec3 c1 = vec3(1.00, 0.894, 0.831) * 1.12;
+        vec3 c2 = vec3(0.659, 0.800, 0.878) * 1.20;
+        vec3 c3 = vec3(1.00, 0.769, 0.847) * 0.72;
+
+        vec3 h1 = normalize(l1 + v);
+        vec3 h2 = normalize(l2 + v);
+        vec3 h3 = normalize(l3 + v);
+        float d1 = max(dot(n, l1), 0.0);
+        float d2 = max(dot(n, l2), 0.0);
+        float d3 = max(dot(n, l3), 0.0);
+
+        col += base * (d1 * c1 + d2 * c2 + d3 * c3) * 0.58;
+        col += irid * (
+          pow(max(dot(n, h1), 0.0), 52.0) * c1 +
+          pow(max(dot(n, h2), 0.0), 52.0) * c2 +
+          pow(max(dot(n, h3), 0.0), 40.0) * c3
+        ) * 0.26;
+        col += sheenCol * pow(1.0 - ndv, 2.6) * (d1 + d2 + d3) * 0.12;
+
+        vec3 r = reflect(-v, n);
+        col += envColor(r) * mix(base, irid, 0.58) * (0.12 + fres * 0.40);
+        col += sheenCol * fres * 0.18;
+        return col;
+      }
+
+      void main() {
+        vec3 nObj = clothNormal(vUv);
+        vec3 pW = uRot * vPos;
+        vec3 nW = normalize(uRot * nObj);
+        vec3 V = normalize(cameraPosition - pW);
+        if (dot(nW, V) < 0.0) nW = -nW;
+        gl_FragColor = vec4(shadeSilk(nW, V, pW), 1.0);
+      }
+    `,
+  });
+
+  const displayGeo = new THREE.PlaneGeometry(WIDTH, HEIGHT, 640, 420);
   const mesh = new THREE.Mesh(displayGeo, material);
   mesh.rotation.x = -0.36;
   mesh.frustumCulled = false;
@@ -367,7 +403,7 @@ if (canvas && section) {
   const camDir = new THREE.Vector3();
   let dragging = false;
   let grabIndex = -1;
-  const GRAB_R = 6.4;
+  const GRAB_R = 7.2;
 
   function pointerToNDC(event) {
     const rect = canvas.getBoundingClientRect();
@@ -467,6 +503,8 @@ if (canvas && section) {
   for (let i = 0; i < 110; i++) stepSim(1 / 50, i * 0.035);
   writeTexture();
   writeHitMesh();
+  mesh.updateMatrixWorld();
+  uniforms.uRot.value.setFromMatrix4(mesh.matrixWorld);
   renderer.render(scene, camera);
 
   function loop() {
@@ -478,8 +516,9 @@ if (canvas && section) {
     if (!reduceMotion || dragging) stepSim(dt, t);
     writeTexture();
     writeHitMesh();
-    const shimmer = 250 + Math.sin(t * 0.22) * 40;
-    material.iridescenceThicknessRange = [shimmer, shimmer + 220];
+    mesh.updateMatrixWorld();
+    uniforms.uRot.value.setFromMatrix4(mesh.matrixWorld);
+    uniforms.uTime.value = t;
     renderer.render(scene, camera);
   }
   loop();
