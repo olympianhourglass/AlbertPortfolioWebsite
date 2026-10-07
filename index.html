@@ -12,20 +12,21 @@
 <body>
   <header class="site-header">
     <nav class="nav container">
-      <a href="#home" class="brand">Albert</a>
+      <a href="#home" class="brand" data-view="portfolio">Albert</a>
       <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
         <span></span><span></span><span></span>
       </button>
       <ul class="nav-links">
-        <li><a href="#about">About</a></li>
-        <li><a href="#projects">Work</a></li>
-        <li><a href="#showcase">Clouds</a></li>
-        <li><a href="#contact">Contact</a></li>
+        <li><a href="#about" data-view="portfolio">About</a></li>
+        <li><a href="#projects" data-view="portfolio">Work</a></li>
+        <li><a href="#experiments" data-view="experiments">Experiments</a></li>
+        <li><a href="#contact" data-view="portfolio">Contact</a></li>
       </ul>
     </nav>
   </header>
 
   <main>
+    <div id="view-portfolio" class="site-view is-active">
     <!-- Hero -->
     <section id="home" class="hero container">
       <p class="eyebrow">Hello, I'm</p>
@@ -93,6 +94,21 @@
       </div>
     </section>
 
+    <!-- Contact -->
+    <section id="contact" class="section container">
+      <h2 class="section-title">Contact</h2>
+      <p class="contact-text">
+        Open to conversations, critiques, and new product problems. Say hello.
+      </p>
+      <div class="contact-links">
+        <a href="mailto:hello@example.com" class="btn btn-primary">Email me</a>
+        <a href="https://github.com/olympianhourglass" class="btn btn-ghost" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </section>
+    </div>
+
+    <div id="experiments" class="site-view" hidden>
+    <h1 class="visually-hidden">Experiments</h1>
     <!-- Showcase: animated gradient clouds -->
     <section id="showcase" class="showcase" data-clouds="keep">
       <div class="showcase-inner">
@@ -144,18 +160,7 @@
       </div>
       <canvas class="cloth-canvas" aria-hidden="true"></canvas>
     </section>
-
-    <!-- Contact -->
-    <section id="contact" class="section container">
-      <h2 class="section-title">Contact</h2>
-      <p class="contact-text">
-        Open to conversations, critiques, and new product problems. Say hello.
-      </p>
-      <div class="contact-links">
-        <a href="mailto:hello@example.com" class="btn btn-primary">Email me</a>
-        <a href="https://github.com/olympianhourglass" class="btn btn-ghost" target="_blank" rel="noopener">GitHub</a>
-      </div>
-    </section>
+    </div>
   </main>
 
   <footer class="site-footer">
@@ -164,7 +169,7 @@
     </div>
   </footer>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=4"></script>
   <script type="importmap">
     {
       "imports": {
