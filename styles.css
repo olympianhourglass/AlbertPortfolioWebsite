@@ -407,10 +407,10 @@ body {
   cursor: default;
   background: linear-gradient(
     165deg,
-    #f7f1e6 0%,
-    #efe6d8 32%,
-    #f3e4e0 58%,
-    #d9e0e6 100%
+    #fff7f4 0%,
+    #fbe6e2 34%,
+    #f3d0cc 68%,
+    #e8c0c2 100%
   );
 }
 
