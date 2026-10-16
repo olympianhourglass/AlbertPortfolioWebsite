@@ -403,8 +403,20 @@ body {
   margin: 0 auto;
 }
 
+.showcase-breath {
+  cursor: default;
+  background: linear-gradient(
+    165deg,
+    #f7f1e6 0%,
+    #efe6d8 32%,
+    #f3e4e0 58%,
+    #d9e0e6 100%
+  );
+}
+
 .cloud-canvas,
-.cloth-canvas {
+.cloth-canvas,
+.breath-canvas {
   position: absolute;
   inset: 0;
   z-index: 1;

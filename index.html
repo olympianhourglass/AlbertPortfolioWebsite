@@ -109,6 +109,15 @@
 
     <div id="experiments" class="site-view" hidden>
     <h1 class="visually-hidden">Experiments</h1>
+
+    <section id="showcase-breath" class="showcase showcase-breath">
+      <div class="showcase-inner">
+        <h2 class="section-title showcase-title">Breathing Petals</h2>
+        <p class="showcase-sub">A quiet study — overlapping Japanese washes that open and rest like a breath.</p>
+      </div>
+      <canvas class="breath-canvas" aria-hidden="true"></canvas>
+    </section>
+
     <!-- Showcase: animated gradient clouds -->
     <section id="showcase" class="showcase" data-clouds="keep">
       <div class="showcase-inner">
@@ -169,7 +178,7 @@
     </div>
   </footer>
 
-  <script src="script.js?v=4"></script>
+  <script src="script.js?v=5"></script>
   <script type="importmap">
     {
       "imports": {
@@ -180,5 +189,6 @@
   </script>
   <script type="module" src="clouds.js?v=37"></script>
   <script type="module" src="cloth.js?v=25"></script>
+  <script type="module" src="breath.js?v=2"></script>
 </body>
 </html>
