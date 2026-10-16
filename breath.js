@@ -18,14 +18,14 @@ if (canvas && section) {
   };
 
   const forms = [
-    { type: "notch", x: -0.1, y: -0.16, a: -0.55, len: 1.28, w: 0.44, curl: 0.14, delay: 0.0, shade: 0 },
-    { type: "cup", x: 0.12, y: -0.04, a: 0.72, len: 1.12, w: 0.56, curl: -0.1, delay: 0.08, shade: 1 },
-    { type: "ribbon", x: 0.22, y: 0.12, a: 1.85, len: 1.42, w: 0.2, curl: 0.26, delay: 0.15, shade: 2 },
-    { type: "fold", x: -0.02, y: 0.1, a: 3.05, len: 0.98, w: 0.4, curl: 0.08, delay: 0.04, shade: 1 },
-    { type: "notch", x: -0.2, y: 0.08, a: 2.55, len: 0.82, w: 0.3, curl: -0.12, delay: 0.12, shade: 0 },
-    { type: "ribbon", x: -0.18, y: -0.08, a: -1.25, len: 1.08, w: 0.16, curl: 0.2, delay: 0.2, shade: 2 },
-    { type: "cup", x: 0.08, y: 0.2, a: 4.15, len: 0.7, w: 0.38, curl: -0.06, delay: 0.1, shade: 0 },
-    { type: "splinter", x: 0.16, y: -0.18, a: 0.18, len: 0.78, w: 0.12, curl: 0.16, delay: 0.18, shade: 2 },
+    { type: "notch", a: -0.12, len: 1.22, w: 0.44, curl: 0.14, delay: 0.0, shade: 0 },
+    { type: "cup", a: 0.78, len: 1.08, w: 0.56, curl: -0.1, delay: 0.08, shade: 1 },
+    { type: "ribbon", a: 1.62, len: 1.38, w: 0.2, curl: 0.26, delay: 0.15, shade: 2 },
+    { type: "fold", a: 2.48, len: 0.98, w: 0.4, curl: 0.08, delay: 0.04, shade: 1 },
+    { type: "notch", a: 3.32, len: 1.14, w: 0.34, curl: -0.12, delay: 0.12, shade: 0 },
+    { type: "ribbon", a: 4.18, len: 1.05, w: 0.16, curl: 0.2, delay: 0.2, shade: 2 },
+    { type: "cup", a: 5.05, len: 0.82, w: 0.38, curl: -0.06, delay: 0.1, shade: 0 },
+    { type: "splinter", a: 5.78, len: 0.92, w: 0.12, curl: 0.16, delay: 0.18, shade: 2 },
   ];
 
   const shades = [
@@ -77,46 +77,46 @@ if (canvas && section) {
   function drawNotch(length, width, curl, open) {
     const n = 0.14 + open * 0.07;
     ctx.beginPath();
-    ctx.moveTo(0, 4);
+    ctx.moveTo(0, 0);
     ctx.bezierCurveTo(width * 0.5, length * 0.1, width * 1.08 + curl * 12, length * 0.42, width * 0.42 + curl * 8, length * (0.86 - n * 0.2));
     ctx.quadraticCurveTo(width * 0.16, length * 0.7, curl * 4, length * 0.62);
     ctx.quadraticCurveTo(-width * 0.12, length * 0.7, -width * 0.4 + curl * 4, length * (0.86 - n * 0.2));
-    ctx.bezierCurveTo(-width * 1.02 + curl * 8, length * 0.4, -width * 0.48, length * 0.1, 0, 4);
+    ctx.bezierCurveTo(-width * 1.02 + curl * 8, length * 0.4, -width * 0.48, length * 0.1, 0, 0);
     ctx.closePath();
   }
 
   function drawCup(length, width, curl) {
     ctx.beginPath();
-    ctx.moveTo(0, 6);
+    ctx.moveTo(0, 0);
     ctx.bezierCurveTo(width * 0.7, length * 0.08, width * 1.2 + curl * 14, length * 0.5, curl * 8, length);
-    ctx.bezierCurveTo(-width * 1.15 + curl * 10, length * 0.48, -width * 0.65, length * 0.08, 0, 6);
+    ctx.bezierCurveTo(-width * 1.15 + curl * 10, length * 0.48, -width * 0.65, length * 0.08, 0, 0);
     ctx.closePath();
   }
 
   function drawRibbon(length, width, curl) {
     const s = curl * 58;
     ctx.beginPath();
-    ctx.moveTo(-width * 0.15, 8);
+    ctx.moveTo(0, 0);
     ctx.bezierCurveTo(width * 1.6 + s, length * 0.18, -width * 1.4 - s, length * 0.52, s * 0.55, length);
-    ctx.bezierCurveTo(-width * 1.5 - s, length * 0.56, width * 0.7 + s, length * 0.22, width * 0.3, 12);
+    ctx.bezierCurveTo(-width * 1.5 - s, length * 0.56, width * 0.7 + s, length * 0.22, 0, 0);
     ctx.closePath();
   }
 
   function drawFold(length, width, curl) {
     ctx.beginPath();
-    ctx.moveTo(0, 8);
+    ctx.moveTo(0, 0);
     ctx.bezierCurveTo(width * 0.85, length * 0.18, width * 0.95 + curl * 10, length * 0.55, curl * 6, length * 0.72);
     ctx.quadraticCurveTo(width * 0.12, length * 0.88, 0, length);
     ctx.quadraticCurveTo(-width * 0.2, length * 0.7, -width * 0.55, length * 0.5);
-    ctx.bezierCurveTo(-width * 0.9, length * 0.22, -width * 0.3, length * 0.1, 0, 8);
+    ctx.bezierCurveTo(-width * 0.9, length * 0.22, -width * 0.3, length * 0.1, 0, 0);
     ctx.closePath();
   }
 
   function drawSplinter(length, width, curl) {
     ctx.beginPath();
-    ctx.moveTo(0, 10);
+    ctx.moveTo(0, 0);
     ctx.bezierCurveTo(width * 1.4, length * 0.3, width * 0.2 + curl * 20, length * 0.7, curl * 12, length);
-    ctx.bezierCurveTo(-width * 0.4, length * 0.62, -width * 0.9, length * 0.22, 0, 10);
+    ctx.bezierCurveTo(-width * 0.4, length * 0.62, -width * 0.9, length * 0.22, 0, 0);
     ctx.closePath();
   }
 
@@ -137,7 +137,6 @@ if (canvas && section) {
     const curl = p.curl * (0.7 + b * 0.55);
 
     ctx.save();
-    ctx.translate(p.x * size * 1.35, p.y * size * 1.25);
     ctx.rotate(p.a + (b - 0.5) * 0.08);
     pathFor(p.type, len, width, curl, b);
 
