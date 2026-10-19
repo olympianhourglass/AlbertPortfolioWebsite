@@ -267,10 +267,11 @@ THEMES["grey-layered"] = {
     { color: "#c5d5e4", tint: "#b5cadd", dist: 1.6, rough: 0.01, ghost: "#b5cadd" },
     { color: "#ffffff", tint: "#ffffff", dist: 50, rough: 0.2, ghost: "#f4f4f4" },
   ],
+  // One salmon base per stack at most; blue and white can repeat.
   stacks: [
-    [2, 2, 1],
+    [1, 2, 2],
     [1, 2, 1],
-    [2, 1, 1],
+    [1, 1, 2],
     [1, 1, 1],
   ],
 };
