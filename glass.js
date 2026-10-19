@@ -83,6 +83,28 @@ const setVertex = /* glsl */ `
   }
 `;
 
+// Soft occlusion toward the sun from each stack's box (xz centre, height). The longer the
+// ray runs through glass, the deeper the shade, so edges feather instead of cutting hard.
+const stackShadow = /* glsl */ `
+  float stackShadow(vec3 p, vec3 L) {
+    float occ = 0.0;
+    vec3 inv = 1.0 / L;
+    for (int k = 0; k < 4; k++) {
+      vec3 lo = vec3(uStacks[k].x - 0.75, 0.0, uStacks[k].y - 0.75);
+      vec3 hi = vec3(uStacks[k].x + 0.75, uStacks[k].z, uStacks[k].y + 0.75);
+      if (all(greaterThan(p, lo - 0.03)) && all(lessThan(p, hi + 0.03))) continue;
+      vec3 t1 = (lo - p) * inv;
+      vec3 t2 = (hi - p) * inv;
+      vec3 tn = min(t1, t2);
+      vec3 tf = max(t1, t2);
+      float enter = max(max(tn.x, tn.y), max(tn.z, 0.0));
+      float leave = min(min(tf.x, tf.y), tf.z);
+      occ = max(occ, smoothstep(0.0, 0.7, leave - enter));
+    }
+    return occ;
+  }
+`;
+
 const setFragment = /* glsl */ `
   uniform float uTime;
   uniform float uWall;
@@ -90,6 +112,7 @@ const setFragment = /* glsl */ `
   uniform vec3 uLight;
   uniform vec3 uStacks[4];
   varying vec3 vWorld;
+  ${stackShadow}
 
   #define TAU 6.28318530718
 
@@ -138,9 +161,10 @@ const setFragment = /* glsl */ `
       }
       pool += 0.4 * (1.0 - smoothstep(2.5, 8.0, length(vWorld.xz)));
       pool = clamp(pool, 0.0, 1.4);
-      col *= 1.0 - clamp(ao, 0.0, 1.0) * 0.16;
+      col *= 1.0 - clamp(ao, 0.0, 1.0) * 0.2;
       vec3 c = causticRGB(vWorld.xz * 0.34, t);
       col += c * pool * warm * 1.1 + pool * 0.06 * warm;
+      col *= 1.0 - stackShadow(vWorld, normalize(uLight)) * 0.3;
       col *= mix(1.0, 0.97, smoothstep(5.0, uRadius, length(vWorld.xz)));
     } else {
       float ang = atan(vWorld.z, vWorld.x);
@@ -302,13 +326,53 @@ function initGlass(section, canvas) {
     });
   }
 
+  // Stacks shade one another, each seam gets a contact line, and the glass carries 4% black.
+  const glassShade = {
+    uStacks: { value: null },
+    uLight: { value: light },
+    uPitch: { value: PITCH },
+    uLip: { value: MOD.lip },
+  };
+  function shadeGlass(mat) {
+    mat.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, glassShade);
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec3 vGlassWorld;")
+        .replace(
+          "#include <project_vertex>",
+          "#include <project_vertex>\nvGlassWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;"
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          "#include <common>",
+          `#include <common>
+          varying vec3 vGlassWorld;
+          uniform vec3 uStacks[4];
+          uniform vec3 uLight;
+          uniform float uPitch;
+          uniform float uLip;
+          ${stackShadow}`
+        )
+        .replace(
+          "#include <opaque_fragment>",
+          `#include <opaque_fragment>
+          float seamY = (floor(vGlassWorld.y / uPitch + 0.5) * uPitch) + uLip * 0.5;
+          float seamD = (vGlassWorld.y - seamY) / 0.07;
+          float seam = exp(-seamD * seamD);
+          float occl = stackShadow(vGlassWorld, normalize(uLight));
+          gl_FragColor.rgb *= 0.96 * (1.0 - occl * 0.2) * (1.0 - seam * 0.14);`
+        );
+    };
+    return mat;
+  }
+
   const stackUniform = [];
   const group = new THREE.Group();
   scene.add(group);
   let k = 0;
   columns.forEach((col) => {
     for (let i = 0; i < col.count; i++) {
-      const mat = glassFor(k++ * 5 + 1);
+      const mat = shadeGlass(glassFor(k++ * 5 + 1));
       const block = new THREE.Group();
       block.add(
         new THREE.Mesh(bodyGeo, mat),
@@ -325,6 +389,7 @@ function initGlass(section, canvas) {
     v.x -= STEP / 2;
     v.y -= STEP / 2;
   });
+  glassShade.uStacks.value = stackUniform;
 
   const RADIUS = 16;
   const setUniforms = (wall) => ({
