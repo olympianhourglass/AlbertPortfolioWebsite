@@ -453,10 +453,24 @@ body {
   color: rgba(34, 44, 48, 0.6);
 }
 
+.showcase-glass {
+  background: #f3eee3;
+  cursor: default;
+}
+
+.showcase-glass .showcase-title {
+  color: #2b3330;
+}
+
+.showcase-glass .showcase-sub {
+  color: rgba(43, 51, 48, 0.62);
+}
+
 .cloud-canvas,
 .cloth-canvas,
 .breath-canvas,
-.hud-canvas {
+.hud-canvas,
+.glass-canvas {
   position: absolute;
   inset: 0;
   z-index: 1;
