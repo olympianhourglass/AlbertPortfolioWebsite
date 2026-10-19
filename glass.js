@@ -1,46 +1,7 @@
-// Glass tiles — stacked rounded blocks on a cream set, caustics thrown on the floor and wall.
+// Glass tiles — keyed glass modules on a soft cream set, lit like a product shot.
 
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-function tileNormalMap(size = 256, cells = 3) {
-  const height = new Float32Array(size * size);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const u = (x / size) * cells;
-      const v = (y / size) * cells;
-      const fu = u - Math.floor(u);
-      const fv = v - Math.floor(v);
-      const pillow = Math.pow(Math.sin(Math.PI * fu) * Math.sin(Math.PI * fv), 0.45);
-      const ripple =
-        0.06 * Math.sin(u * 11 + Math.sin(v * 5) * 1.6) +
-        0.04 * Math.sin(v * 13 + Math.cos(u * 4) * 1.2);
-      height[y * size + x] = pillow + ripple;
-    }
-  }
-  const data = new Uint8Array(size * size * 4);
-  const strength = 3.2;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const at = (xx, yy) =>
-        height[((yy + size) % size) * size + ((xx + size) % size)];
-      const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
-      const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
-      const len = Math.hypot(dx, dy, 1);
-      const i = (y * size + x) * 4;
-      data[i] = ((-dx / len) * 0.5 + 0.5) * 255;
-      data[i + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
-      data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
-      data[i + 3] = 255;
-    }
-  }
-  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.magFilter = THREE.LinearFilter;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.generateMipmaps = true;
-  tex.needsUpdate = true;
-  return tex;
-}
 
 const setVertex = /* glsl */ `
   varying vec3 vWorld;
@@ -82,7 +43,7 @@ const setFragment = /* glsl */ `
   }
 
   void main() {
-    vec3 cream = vec3(0.89, 0.84, 0.75);
+    vec3 cream = vec3(0.9, 0.87, 0.81);
     vec3 warm = vec3(1.0, 0.94, 0.82);
     vec3 col = cream;
     vec2 L2 = normalize(-uLight.xz);
@@ -104,11 +65,10 @@ const setFragment = /* glsl */ `
         pool += m * (1.0 - 0.5 * clamp(a / max(reach, 0.01), 0.0, 1.0));
         ao += exp(-dot(d, d) * 1.6) * 0.6 + exp(-b * b * 2.5) * smoothstep(-0.5, 0.5, a) * (1.0 - smoothstep(0.0, reach, a)) * 0.25;
       }
-      pool += 0.4 * (1.0 - smoothstep(2.5, 8.0, length(vWorld.xz)));
       pool = clamp(pool, 0.0, 1.4);
       col *= 1.0 - clamp(ao, 0.0, 1.0) * 0.16;
       vec3 c = causticRGB(vWorld.xz * 0.34, t);
-      col += c * pool * warm * 1.1 + pool * 0.06 * warm;
+      col += c * pool * warm * 0.7 + pool * 0.04 * warm;
       col *= mix(1.0, 0.97, smoothstep(5.0, uRadius, length(vWorld.xz)));
     } else {
       float ang = atan(vWorld.z, vWorld.x);
@@ -118,13 +78,13 @@ const setFragment = /* glsl */ `
       da = atan(sin(da), cos(da));
       float db = ang - atan(-L2.y, -L2.x);
       db = atan(sin(db), cos(db));
-      float through = max(exp(-da * da * 1.4), 0.45) * band;
-      float bounced = exp(-db * db * 2.2) * band * 0.6;
+      float through = exp(-da * da * 2.5) * band;
+      float bounced = exp(-db * db * 4.0) * band * 0.4;
       vec2 uv = vec2(ang * uRadius * 0.16, y * 0.22);
       vec3 c = causticRGB(uv, t * 0.8);
-      col = mix(cream, vec3(0.93, 0.9, 0.83), smoothstep(0.0, 12.0, y));
+      col = mix(cream, vec3(0.94, 0.92, 0.88), smoothstep(0.0, 12.0, y));
       col *= mix(0.97, 1.0, smoothstep(0.0, 2.5, y));
-      col += c * warm * (through * 0.7 + bounced * 0.5) + warm * (through + bounced) * 0.03;
+      col += c * warm * (through * 0.4 + bounced * 0.3) + warm * (through + bounced) * 0.02;
     }
 
     gl_FragColor = vec4(col, 1.0);
@@ -142,19 +102,19 @@ function initGlass(section, canvas) {
   renderer.toneMapping = THREE.NoToneMapping;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#f3eee3");
+  scene.background = new THREE.Color("#f4f1ea");
   const pmrem = new THREE.PMREMGenerator(renderer);
 
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
 
-  const light = new THREE.Vector3(0.72, 0.52, 0.46).normalize();
+  const light = new THREE.Vector3(0.55, 0.75, 0.37).normalize();
   const sun = new THREE.DirectionalLight("#fff6e8", 1.1);
   sun.position.copy(light).multiplyScalar(12);
   scene.add(sun);
   scene.add(new THREE.HemisphereLight("#fffaf0", "#e9dfcc", 0.3));
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
-  const MOD = { size: 1.5, height: 0.6, radius: 0.15, lip: 0.07 };
+  const MOD = { size: 1.5, height: 0.6, radius: 0.2, lip: 0.07 };
   const PITCH = MOD.height + MOD.lip;
   const GAP = 0.2;
   const STEP = MOD.size + GAP;
@@ -206,14 +166,13 @@ function initGlass(section, canvas) {
   const skirtGeo = ringGeometry(MOD.size - 0.06, (MOD.size - 0.06 - (rimOuter + 0.03)) / 2, MOD.lip, 0.14);
   skirtGeo.translate(0, -MOD.height / 2 - MOD.lip, 0);
 
-  const normalMap = tileNormalMap();
   const tints = [
-    { tint: "#d8f0e6", dist: 9, rough: 0.0, ior: 1.5 },
-    { tint: "#c4e6dc", dist: 6, rough: 0.0, ior: 1.52 },
-    { tint: "#eef4ee", dist: 14, rough: 0.0, ior: 1.48 },
-    { tint: "#b9e0d6", dist: 5, rough: 0.01, ior: 1.54 },
-    { tint: "#dfeee8", dist: 10, rough: 0.0, ior: 1.5 },
-    { tint: "#cdeee2", dist: 7, rough: 0.0, ior: 1.53 },
+    { tint: "#eef1ef", dist: 12, rough: 0.0, ior: 1.5 },
+    { tint: "#e3ebe8", dist: 8, rough: 0.0, ior: 1.52 },
+    { tint: "#f2f2f0", dist: 16, rough: 0.32, ior: 1.5 },
+    { tint: "#dde8e4", dist: 7, rough: 0.0, ior: 1.54 },
+    { tint: "#eceeed", dist: 12, rough: 0.0, ior: 1.48 },
+    { tint: "#e6ecea", dist: 10, rough: 0.18, ior: 1.52 },
   ];
 
   function glassFor(k) {
@@ -228,11 +187,9 @@ function initGlass(section, canvas) {
       attenuationColor: new THREE.Color(t.tint),
       attenuationDistance: t.dist,
       specularIntensity: 1,
-      clearcoat: 0.6,
-      clearcoatRoughness: 0.02,
-      normalMap,
-      normalScale: new THREE.Vector2(0.28, 0.28),
-      envMapIntensity: 1.15,
+      clearcoat: t.rough > 0 ? 0 : 0.8,
+      clearcoatRoughness: 0.01,
+      envMapIntensity: 1.0,
     });
   }
 
@@ -290,36 +247,39 @@ function initGlass(section, canvas) {
   wall.position.y = 15;
   scene.add(wall);
 
+  // Reflection studio: dark surround, one big overhead softbox, thin side strips.
+  // The glass edges mirror the dark band, which is what gives the reference its crisp black rims.
   const envScene = new THREE.Scene();
-  envScene.add(floor.clone(), wall.clone());
-  const softbox = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(3.2, 3.0, 2.7),
-    side: THREE.DoubleSide,
-  });
-  for (const [x, y, z, sw, sh] of [
-    [light.x * 9, light.y * 9 + 2, light.z * 9, 6, 3],
-    [-7, 6, -4, 3, 5],
-    [0, 11, 0, 7, 7],
+  envScene.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(30, 48, 24),
+      new THREE.MeshBasicMaterial({ color: "#0c0d0d", side: THREE.BackSide })
+    )
+  );
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(30, 48),
+    new THREE.MeshBasicMaterial({ color: "#3a3936" })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -2;
+  envScene.add(ground);
+  const glow = (r, g, b) =>
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(r, g, b), side: THREE.DoubleSide });
+  const overhead = new THREE.Mesh(new THREE.PlaneGeometry(13, 13), glow(2.4, 2.4, 2.35));
+  overhead.position.set(0, 14, 0);
+  overhead.rotation.x = Math.PI / 2;
+  envScene.add(overhead);
+  for (const [x, y, z, sw, sh, v] of [
+    [12, 9, 4, 0.9, 6, 2.2],
+    [-11, 10, -6, 0.7, 5, 1.8],
+    [3, 12, -13, 9, 0.8, 1.6],
   ]) {
-    const panel = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), softbox);
-    panel.position.set(x, y, z);
-    panel.lookAt(0, 1.5, 0);
-    envScene.add(panel);
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), glow(v, v, v * 0.98));
+    strip.position.set(x, y, z);
+    strip.lookAt(0, 2, 0);
+    envScene.add(strip);
   }
-  // Black cards, as in a product shoot: they only show up as dark edge lines in the glass.
-  const flag = new THREE.MeshBasicMaterial({ color: "#1d201e", side: THREE.DoubleSide });
-  for (const [x, y, z, sw, sh] of [
-    [-light.x * 8, 2.5, -light.z * 8, 2.2, 7],
-    [light.z * 8, 2.2, -light.x * 8, 1.4, 6],
-    [-light.z * 8, 3, light.x * 8, 1.0, 6],
-  ]) {
-    const card = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), flag);
-    card.position.set(x, y, z);
-    card.lookAt(0, 1.5, 0);
-    envScene.add(card);
-  }
-  envScene.position.y = -1.2;
-  scene.environment = pmrem.fromScene(envScene, 0.02).texture;
+  scene.environment = pmrem.fromScene(envScene, 0.015).texture;
 
   const target = new THREE.Vector3(0, 1.3, 0);
 
