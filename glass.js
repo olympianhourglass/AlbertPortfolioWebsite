@@ -105,6 +105,15 @@ const stackShadow = /* glsl */ `
   }
 `;
 
+// Zero-mean film grain, re-seeded every frame so it shimmers instead of sitting on the glass.
+const grain = /* glsl */ `
+  float grainAt(vec2 px, float time) {
+    vec3 p = fract(vec3(px, floor(time * 24.0)) * vec3(0.1031, 0.1030, 0.0973));
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z) - 0.5;
+  }
+`;
+
 const setFragment = /* glsl */ `
   uniform float uTime;
   uniform float uWall;
@@ -119,8 +128,10 @@ const setFragment = /* glsl */ `
   uniform float uShadow;
   uniform float uAO;
   uniform float uVignette;
+  uniform float uGrain;
   varying vec3 vWorld;
   ${stackShadow}
+  ${grain}
 
   #define TAU 6.28318530718
 
@@ -191,6 +202,7 @@ const setFragment = /* glsl */ `
       col += (c * warm * (through * 0.7 + bounced * 0.5) + warm * (through + bounced) * 0.03) * lift;
     }
 
+    col += grainAt(gl_FragCoord.xy, uTime) * uGrain;
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
@@ -213,6 +225,7 @@ const THEMES = {
     occl: 0.2,
     seam: 0.14,
     vignette: 0,
+    grain: 0,
     studio: false,
     env: 1.15,
   },
@@ -229,9 +242,10 @@ const THEMES = {
     contrast: 1.4,
     shadow: 0.5,
     ao: 0.34,
-    occl: 0.4,
+    occl: 0.28,
     seam: 0.28,
     vignette: 0.1,
+    grain: 0.035,
     // Ring of strip lights and black cards: highlights and darks sweep across the glass as it turns.
     studio: true,
     env: 1.5,
@@ -372,6 +386,9 @@ function initGlass(section, canvas, theme) {
       attenuationDistance: t.dist,
       specularIntensity: 1,
       clearcoat: theme.studio ? 1 : 0.6,
+      iridescence: theme.studio ? 0.35 : 0,
+      iridescenceIOR: 1.3,
+      iridescenceThicknessRange: [220, 480],
       clearcoatRoughness: 0.02,
       normalMap,
       normalScale: new THREE.Vector2(0.28, 0.28),
@@ -386,6 +403,8 @@ function initGlass(section, canvas, theme) {
     uContrast: { value: theme.contrast },
     uOccl: { value: theme.occl },
     uSeam: { value: theme.seam },
+    uGrain: { value: theme.grain },
+    uTime: { value: 0 },
     uStacks: { value: null },
     uLight: { value: light },
     uPitch: { value: PITCH },
@@ -414,7 +433,10 @@ function initGlass(section, canvas, theme) {
           uniform float uContrast;
           uniform float uOccl;
           uniform float uSeam;
-          ${stackShadow}`
+          uniform float uGrain;
+          uniform float uTime;
+          ${stackShadow}
+          ${grain}`
         )
         .replace(
           "#include <opaque_fragment>",
@@ -427,7 +449,8 @@ function initGlass(section, canvas, theme) {
           float fres = pow(1.0 - facing, 2.0);
           gl_FragColor.rgb *= 1.0 - uEdge * fres;
           gl_FragColor.rgb *= uBody * (1.0 - occl * uOccl) * (1.0 - seam * uSeam);
-          gl_FragColor.rgb = max((gl_FragColor.rgb - 0.35) * uContrast + 0.35, 0.0);`
+          gl_FragColor.rgb = max((gl_FragColor.rgb - 0.35) * uContrast + 0.35, 0.0);
+          gl_FragColor.rgb += grainAt(gl_FragCoord.xy, uTime) * uGrain;`
         );
     };
     return mat;
@@ -473,6 +496,7 @@ function initGlass(section, canvas, theme) {
     uShadow: { value: theme.shadow },
     uAO: { value: theme.ao },
     uVignette: { value: theme.vignette },
+    uGrain: { value: theme.grain },
   });
   const floorMat = new THREE.ShaderMaterial({
     uniforms: setUniforms(0),
@@ -542,8 +566,9 @@ function initGlass(section, canvas, theme) {
 
   const target = new THREE.Vector3(0, 1.3, 0);
 
+  // The studio set turns like a turntable that breathes: it lingers on faces and eases between them.
   function placeCamera(t) {
-    const a = t * 0.16 + 0.6;
+    const a = t * 0.16 + 0.6 + (theme.studio ? Math.sin(t * 0.32) * 0.28 : 0);
     const r = 12.5;
     camera.position.set(
       target.x + Math.cos(a) * r,
@@ -584,6 +609,7 @@ function initGlass(section, canvas, theme) {
     const t = reduceMotion ? 4 : clock.getElapsedTime();
     floorMat.uniforms.uTime.value = t;
     wallMat.uniforms.uTime.value = t;
+    glassShade.uTime.value = t;
     placeCamera(t);
     renderer.render(scene, camera);
   }
