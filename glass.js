@@ -154,7 +154,7 @@ function initGlass(section, canvas) {
   scene.add(new THREE.HemisphereLight("#fffaf0", "#e9dfcc", 0.3));
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
-  const MOD = { size: 1.5, height: 0.6, radius: 0.15, lip: 0.07 };
+  const MOD = { size: 1.5, height: 0.6, radius: 0.24, lip: 0.07 };
   const PITCH = MOD.height + MOD.lip;
   const GAP = 0.2;
   const STEP = MOD.size + GAP;
@@ -171,13 +171,13 @@ function initGlass(section, canvas) {
     const y = -d / 2;
     s.moveTo(x + r, y);
     s.lineTo(x + w - r, y);
-    s.quadraticCurveTo(x + w, y, x + w, y + r);
+    s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
     s.lineTo(x + w, y + d - r);
-    s.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
+    s.absarc(x + w - r, y + d - r, r, 0, Math.PI / 2, false);
     s.lineTo(x + r, y + d);
-    s.quadraticCurveTo(x, y + d, x, y + d - r);
+    s.absarc(x + r, y + d - r, r, Math.PI / 2, Math.PI, false);
     s.lineTo(x, y + r);
-    s.quadraticCurveTo(x, y, x + r, y);
+    s.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
     return s;
   }
 
@@ -191,19 +191,19 @@ function initGlass(section, canvas) {
       bevelEnabled: true,
       bevelThickness: bevel,
       bevelSize: bevel,
-      bevelSegments: 3,
-      curveSegments: 18,
+      bevelSegments: 6,
+      curveSegments: 32,
     });
     geo.rotateX(-Math.PI / 2);
     geo.translate(0, bevel, 0);
     return geo;
   }
 
-  const bodyGeo = new RoundedBoxGeometry(MOD.size, MOD.height, MOD.size, 6, MOD.radius);
+  const bodyGeo = new RoundedBoxGeometry(MOD.size, MOD.height, MOD.size, 16, MOD.radius);
   const rimOuter = MOD.size - 0.26;
-  const rimGeo = ringGeometry(rimOuter, 0.1, MOD.lip, 0.12);
+  const rimGeo = ringGeometry(rimOuter, 0.1, MOD.lip, 0.2);
   rimGeo.translate(0, MOD.height / 2, 0);
-  const skirtGeo = ringGeometry(MOD.size - 0.06, (MOD.size - 0.06 - (rimOuter + 0.03)) / 2, MOD.lip, 0.14);
+  const skirtGeo = ringGeometry(MOD.size - 0.06, (MOD.size - 0.06 - (rimOuter + 0.03)) / 2, MOD.lip, 0.22);
   skirtGeo.translate(0, -MOD.height / 2 - MOD.lip, 0);
 
   const normalMap = tileNormalMap();
