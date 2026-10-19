@@ -458,12 +458,20 @@ body {
   cursor: default;
 }
 
+.showcase-glass .showcase-inner {
+  align-self: stretch;
+  text-align: left;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
 .showcase-glass .showcase-title {
   color: #2b3330;
 }
 
 .showcase-glass .showcase-sub {
   color: rgba(43, 51, 48, 0.62);
+  margin: 0;
 }
 
 .cloud-canvas,
