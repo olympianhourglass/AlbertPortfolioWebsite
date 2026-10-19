@@ -1,19 +1,60 @@
 // Cross-section HUD — layered rings that pull apart as you scroll.
 
-const section = document.getElementById("showcase-hud");
-const stage = section?.querySelector(".hud-stage");
-const canvas = section?.querySelector(".hud-canvas");
+const THEMES = {
+  tactical: {
+    ink: "255, 255, 255",
+    accent: "255, 96, 44",
+    header: "XS-04 // CROSS SECTION",
+    modes: ["STACKED", "EXPLODED"],
+    status: ["ACQUIRING", "◆ SECTION LOCKED"],
+    tag: "TGT",
+    codes: ["CORE", "SEG", "TCK", "DSH", "DBL", "BRK", "SWP", "SEG", "DSH", "BRG"],
+    vitals: false,
+  },
+  "vitals-dark": {
+    ink: "236, 248, 244",
+    accent: "94, 234, 196",
+    heart: "255, 98, 98",
+    header: "BIO-02 // VITAL SECTION",
+    modes: ["INTACT", "SECTIONED"],
+    status: ["CALIBRATING", "◆ SCAN COMPLETE"],
+    tag: "MKR",
+    codes: ["CORE", "MDLA", "CRTX", "VASC", "NERV", "MUSC", "FASC", "HYPO", "DERM", "EPI"],
+    vitals: true,
+  },
+  "vitals-cream": {
+    ink: "34, 44, 48",
+    accent: "14, 138, 124",
+    heart: "214, 72, 58",
+    header: "BIO-03 // VITAL SECTION",
+    modes: ["INTACT", "SECTIONED"],
+    status: ["CALIBRATING", "◆ SCAN COMPLETE"],
+    tag: "MKR",
+    codes: ["CORE", "MDLA", "CRTX", "VASC", "NERV", "MUSC", "FASC", "HYPO", "DERM", "EPI"],
+    vitals: true,
+  },
+};
 
-if (section && stage && canvas) {
+document.querySelectorAll(".showcase-hud").forEach((section) => {
+  mountHud(section, THEMES[section.dataset.hud] || THEMES.tactical);
+});
+
+function mountHud(section, theme) {
+  const stage = section.querySelector(".hud-stage");
+  const canvas = section.querySelector(".hud-canvas");
+  if (!stage || !canvas) return;
+
   const reduceMotion = window.matchMedia(
     "(prefers-reduced-motion: reduce)"
   ).matches;
   const ctx = canvas.getContext("2d");
 
   const MONO = '"SF Mono", ui-monospace, Menlo, monospace';
-  const WHITE = "255, 255, 255";
-  const SIGNAL = "255, 96, 44";
+  const WHITE = theme.ink;
+  const SIGNAL = theme.accent;
+  const HEART = theme.heart || theme.accent;
   const TAU = Math.PI * 2;
+  const BEAT = 60 / 72;
 
   const rings = [
     { r: 0.12, kind: "core", spin: 0 },
@@ -28,7 +69,7 @@ if (section && stage && canvas) {
     { r: 1.0, kind: "bearing", spin: 0 },
   ];
 
-  const codes = ["CORE", "SEG", "TCK", "DSH", "DBL", "BRK", "SWP", "SEG", "DSH", "BRG"];
+  const codes = theme.codes;
 
   const blips = [
     { ring: 2, a: 3.7, period: 2.2, phase: 0.5, id: "09" },
@@ -50,7 +91,8 @@ if (section && stage && canvas) {
   const start = performance.now();
   let last = start;
   let hexAt = 0;
-  const hex = Array.from({ length: 6 }, randomHex);
+  const nextLine = theme.vitals ? randomSample : randomHex;
+  const hex = Array.from({ length: 6 }, nextLine);
 
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const ease = (t) =>
@@ -67,6 +109,31 @@ if (section && stage && canvas) {
       if (i < 3) s += " ";
     }
     return s;
+  }
+
+  function randomSample() {
+    const ch = String(1 + Math.floor(Math.random() * 8)).padStart(2, "0");
+    const mv = (Math.random() * 1.6 - 0.4).toFixed(2);
+    const hz = 120 + Math.floor(Math.random() * 16);
+    return `CH${ch}  ${mv.padStart(5, " ")} mV  ${hz} Hz`;
+  }
+
+  // One heartbeat: P wave, QRS spike, T wave.
+  function ecg(phase) {
+    const bump = (c, wdt, amp) => amp * Math.exp(-(((phase - c) / wdt) ** 2));
+    return (
+      bump(0.12, 0.035, 0.12) -
+      bump(0.27, 0.008, 0.14) +
+      bump(0.3, 0.012, 1) -
+      bump(0.33, 0.01, 0.3) +
+      bump(0.55, 0.06, 0.26)
+    );
+  }
+
+  function pulseAt(t) {
+    if (reduceMotion || !theme.vitals) return 0;
+    const ph = ((t / BEAT) % 1 + 1) % 1;
+    return Math.exp(-((ph - 0.3) ** 2) / 0.002);
   }
 
   function resize() {
@@ -168,6 +235,13 @@ if (section && stage && canvas) {
       ctx.lineTo(x - d, y);
       ctx.closePath();
       ctx.stroke();
+      if (theme.vitals) {
+        const p = pulseAt(t);
+        ctx.fillStyle = rgba(HEART, 0.25 + p * 0.6);
+        ctx.beginPath();
+        ctx.ellipse(x, y, r * (0.3 + p * 0.12), r * (0.3 + p * 0.12) * sy, 0, 0, TAU);
+        ctx.fill();
+      }
       return;
     }
 
@@ -260,7 +334,9 @@ if (section && stage && canvas) {
       const a0 = a1 - step;
       const [x1, y1] = pt(x, y, a1, r);
       const [x0, y0] = pt(x, y, a0, r);
-      ctx.fillStyle = rgba(WHITE, 0.12 * (1 - j / slices));
+      ctx.fillStyle = theme.vitals
+        ? rgba(SIGNAL, 0.14 * (1 - j / slices))
+        : rgba(WHITE, 0.12 * (1 - j / slices));
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x1, y1);
@@ -269,7 +345,7 @@ if (section && stage && canvas) {
       ctx.fill();
     }
     const [ex, ey] = pt(x, y, a, r);
-    line(x, y, ex, ey, 0.7);
+    line(x, y, ex, ey, 0.7, theme.vitals ? SIGNAL : WHITE);
   }
 
   function drawBlips(layers, t) {
@@ -282,7 +358,7 @@ if (section && stage && canvas) {
       ctx.strokeRect(px - 3.5, py - 3.5, 7, 7);
       if (on) {
         line(px + 4, py - 4, px + 12, py - 12, 0.6, SIGNAL);
-        text(`TGT-${b.id}`, px + 14, py - 13, 0.9, "left", SIGNAL, 9);
+        text(`${theme.tag}-${b.id}`, px + 14, py - 13, 0.9, "left", SIGNAL, 9);
       }
     }
   }
@@ -310,8 +386,10 @@ if (section && stage && canvas) {
         const x1 = x0 - (x0 - (leftX + 6)) * a;
         line(x0, L.y, x1, L.y, 0.2 * a);
         const z = (L.y - cy) / sep;
-        text(`Z${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(2)}`,
-          leftX, L.y + 3, 0.55 * a, "right", WHITE, 9);
+        const label = theme.vitals
+          ? `D ${(((L.y - cy) / sep + 4.5) * 0.8).toFixed(1)} MM`
+          : `Z${z >= 0 ? "+" : "−"}${Math.abs(z).toFixed(2)}`;
+        text(label, leftX, L.y + 3, 0.55 * a, "right", WHITE, 9);
       }
     }
   }
@@ -359,9 +437,9 @@ if (section && stage && canvas) {
     const tx = m + 16;
     let ty = m + 22;
     const lh = 14;
-    text("XS-04 // CROSS SECTION", tx, ty, 0.95);
+    text(theme.header, tx, ty, 0.95);
     ty += lh;
-    text(`MODE   ${sp > 0.04 ? "EXPLODED" : "STACKED"}`, tx, ty, 0.6);
+    text(`MODE   ${theme.modes[sp > 0.04 ? 1 : 0]}`, tx, ty, 0.6);
     ty += lh;
     const open = rings.filter((_, i) => sp > i * 0.03 + 0.02).length;
     text(`LAYERS ${String(open).padStart(2, "0")}/${rings.length}`, tx, ty, 0.6);
@@ -379,6 +457,39 @@ if (section && stage && canvas) {
     const clock = `${String(Math.floor(secs / 3600)).padStart(2, "0")}:${String(Math.floor(secs / 60) % 60).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}.${String(Math.floor((t % 1) * 100)).padStart(2, "0")}`;
     text(`T+ ${clock}`, rx2, ry, 0.95, "right");
     ry += lh;
+    if (theme.vitals) drawVitals(t, rx2, ry, lh);
+    else drawSignal(t, rx2, ry, lh);
+
+    const locked = sp > 0.97;
+    const status = theme.status[locked ? 1 : 0];
+    if (locked || reduceMotion || Math.floor(t * 2.4) % 2 === 0) {
+      text(status, cx, m + 22, 0.9, "center", locked ? SIGNAL : WHITE, 9);
+    }
+
+    if (w >= 640) {
+      const bx = m + 16;
+      if (theme.vitals) {
+        drawEcg(t, bx, h - m - 44, Math.min(220, w * 0.22), 26);
+      } else {
+        let by = h - m - 50;
+        const lat = 12.4 + Math.sin(t * 0.3) * 0.4;
+        const lon = 48.1 + Math.cos(t * 0.23) * 0.4;
+        text(`N 34°03'${lat.toFixed(1)}"`, bx, by, 0.6);
+        by += lh;
+        text(`W 118°14'${lon.toFixed(1)}"`, bx, by, 0.6);
+        by += lh;
+        text(`ALT ${(412.6 + e * 88).toFixed(1)} M`, bx, by, 0.6);
+      }
+
+      let hy = h - m - 64;
+      for (let i = 0; i < hex.length; i++) {
+        text(hex[i], w - m - 16, hy, 0.18 + (i / hex.length) * 0.5, "right", WHITE, 9);
+        hy += 11;
+      }
+    }
+  }
+
+  function drawSignal(t, rx2, ry, lh) {
     const rec = reduceMotion || Math.floor(t * 1.6) % 2 === 0;
     text("REC", rx2, ry, 0.8, "right");
     if (rec) {
@@ -396,30 +507,46 @@ if (section && stage && canvas) {
       ctx.fillStyle = rgba(WHITE, b < bars ? 0.85 : 0.18);
       ctx.fillRect(bx, ry - bh, 5, bh);
     }
+  }
 
-    const locked = sp > 0.97;
-    const status = locked ? "◆ SECTION LOCKED" : "ACQUIRING";
-    if (locked || reduceMotion || Math.floor(t * 2.4) % 2 === 0) {
-      text(status, cx, m + 22, 0.9, "center", locked ? SIGNAL : WHITE, 9);
+  function drawVitals(t, rx2, ry, lh) {
+    const p = pulseAt(t);
+    const bpm = 72 + Math.round(Math.sin(t * 0.21) * 2);
+    text(`HR ${String(bpm).padStart(3, "0")} BPM`, rx2, ry, 0.85, "right");
+    ctx.fillStyle = rgba(HEART, 0.35 + p * 0.65);
+    ctx.beginPath();
+    ctx.arc(rx2 - 84, ry - 3.5, 2.5 + p * 1.5, 0, TAU);
+    ctx.fill();
+    ry += lh;
+    const spo2 = 98 - (Math.floor(t * 0.4) % 3 === 0 ? 1 : 0);
+    text(`SpO2 ${spo2}%`, rx2, ry, 0.6, "right");
+    ry += lh;
+    const resp = 14 + Math.round(Math.sin(t * 0.13));
+    text(`RESP ${resp}/MIN  TEMP 36.8°C`, rx2, ry, 0.6, "right");
+  }
+
+  function drawEcg(t, x, y, width, height) {
+    text("ECG  II  25 MM/S", x, y - height - 6, 0.55, "left", WHITE, 8);
+    line(x, y, x + width, y, 0.12);
+    const speed = width / (BEAT * 2.4);
+    ctx.strokeStyle = rgba(HEART, 0.9);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let px = 0; px <= width; px += 1.5) {
+      const at = t - (width - px) / speed;
+      const ph = ((at / BEAT) % 1 + 1) % 1;
+      const v = reduceMotion ? 0 : ecg(ph);
+      const py = y - v * height;
+      if (px === 0) ctx.moveTo(x + px, py);
+      else ctx.lineTo(x + px, py);
     }
-
-    if (w >= 640) {
-      const bx = m + 16;
-      let by = h - m - 50;
-      const lat = 12.4 + Math.sin(t * 0.3) * 0.4;
-      const lon = 48.1 + Math.cos(t * 0.23) * 0.4;
-      text(`N 34°03'${lat.toFixed(1)}"`, bx, by, 0.6);
-      by += lh;
-      text(`W 118°14'${lon.toFixed(1)}"`, bx, by, 0.6);
-      by += lh;
-      text(`ALT ${(412.6 + e * 88).toFixed(1)} M`, bx, by, 0.6);
-
-      let hy = h - m - 64;
-      for (let i = 0; i < hex.length; i++) {
-        text(hex[i], w - m - 16, hy, 0.18 + (i / hex.length) * 0.5, "right", WHITE, 9);
-        hy += 11;
-      }
-    }
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    const headV = reduceMotion ? 0 : ecg(((t / BEAT) % 1 + 1) % 1);
+    ctx.fillStyle = rgba(HEART, 0.95);
+    ctx.beginPath();
+    ctx.arc(x + width, y - headV * height, 2, 0, TAU);
+    ctx.fill();
   }
 
   function frame(now) {
@@ -445,7 +572,7 @@ if (section && stage && canvas) {
     if (!reduceMotion && now - hexAt > 140) {
       hexAt = now;
       hex.shift();
-      hex.push(randomHex());
+      hex.push(nextLine());
     }
 
     ctx.clearRect(0, 0, w, h);
@@ -459,6 +586,7 @@ if (section && stage && canvas) {
     const mid = (n - 1) / 2;
     const stagger = 0.03;
     const scrollRot = sp * Math.PI * 0.6;
+    const beat = pulseAt(t);
 
     const layers = rings.map((ring, i) => {
       const k = ease(clamp((sp - i * stagger) / (1 - (n - 1) * stagger), 0, 1));
@@ -468,7 +596,7 @@ if (section && stage && canvas) {
         k,
         x: cx,
         y: cy + (i - mid) * sep * k,
-        r: R * ring.r * (0.7 + 0.42 * k),
+        r: R * ring.r * (0.7 + 0.42 * k) * (1 + beat * 0.018 * (1 - i / n)),
         rot: scrollRot * (i % 2 ? 0.5 : -0.5) + t * ring.spin,
       };
     });

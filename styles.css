@@ -441,6 +441,18 @@ body {
   color: rgba(255, 255, 255, 0.55);
 }
 
+.showcase-hud-cream {
+  background: #f3eee3;
+}
+
+.showcase-hud-cream .showcase-title {
+  color: #222c30;
+}
+
+.showcase-hud-cream .showcase-sub {
+  color: rgba(34, 44, 48, 0.6);
+}
+
 .cloud-canvas,
 .cloth-canvas,
 .breath-canvas,

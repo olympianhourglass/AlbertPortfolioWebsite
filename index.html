@@ -7,7 +7,7 @@
   <title>Albert — Product Design</title>
   <link rel="preload" href="fonts/NeueHaasDisplay-Mediu.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="fonts/rocGroteskMediumWide.otf" as="font" type="font/otf" crossorigin />
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=3" />
 </head>
 <body>
   <header class="site-header">
@@ -118,12 +118,32 @@
       <canvas class="breath-canvas" aria-hidden="true"></canvas>
     </section>
 
-    <section id="showcase-hud" class="showcase showcase-hud">
+    <section id="showcase-hud" class="showcase showcase-hud" data-hud="tactical">
       <div class="hud-stage">
         <canvas class="hud-canvas" aria-hidden="true"></canvas>
         <div class="showcase-inner">
           <h2 class="section-title showcase-title">Cross Section</h2>
           <p class="showcase-sub">A systems study — layered rings that pull apart as you scroll, read like a tactical overlay.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="showcase-hud-vitals" class="showcase showcase-hud" data-hud="vitals-dark">
+      <div class="hud-stage">
+        <canvas class="hud-canvas" aria-hidden="true"></canvas>
+        <div class="showcase-inner">
+          <h2 class="section-title showcase-title">Vital Section</h2>
+          <p class="showcase-sub">A health study — tissue layers that open as you scroll, read like a clinical monitor.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="showcase-hud-cream" class="showcase showcase-hud showcase-hud-cream" data-hud="vitals-cream">
+      <div class="hud-stage">
+        <canvas class="hud-canvas" aria-hidden="true"></canvas>
+        <div class="showcase-inner">
+          <h2 class="section-title showcase-title">Vital Section</h2>
+          <p class="showcase-sub">A health study — tissue layers that open as you scroll, read like a clinical monitor.</p>
         </div>
       </div>
     </section>
@@ -188,7 +208,7 @@
     </div>
   </footer>
 
-  <script src="script.js?v=6"></script>
+  <script src="script.js?v=7"></script>
   <script type="importmap">
     {
       "imports": {
@@ -200,6 +220,6 @@
   <script type="module" src="clouds.js?v=37"></script>
   <script type="module" src="cloth.js?v=25"></script>
   <script type="module" src="breath.js?v=5"></script>
-  <script type="module" src="hud.js?v=2"></script>
+  <script type="module" src="hud.js?v=4"></script>
 </body>
 </html>
