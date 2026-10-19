@@ -105,9 +105,6 @@ const setFragment = /* glsl */ `
         ao += exp(-dot(d, d) * 1.6) * 0.6 + exp(-b * b * 2.5) * smoothstep(-0.5, 0.5, a) * (1.0 - smoothstep(0.0, reach, a)) * 0.25;
       }
       pool = clamp(pool, 0.0, 1.4);
-      vec2 g = abs(fract(vWorld.xz / 1.1) - 0.5);
-      float grout = 1.0 - smoothstep(0.0, 0.012, 0.5 - max(g.x, g.y));
-      col *= 1.0 - grout * 0.07 * (1.0 - smoothstep(6.0, 13.0, length(vWorld.xz)));
       col *= 1.0 - clamp(ao, 0.0, 1.0) * 0.16;
       vec3 c = causticRGB(vWorld.xz * 0.34, t);
       col += c * pool * warm * 1.1 + pool * 0.06 * warm;
@@ -126,9 +123,6 @@ const setFragment = /* glsl */ `
       vec3 c = causticRGB(uv, t * 0.8);
       col = mix(cream, vec3(0.93, 0.9, 0.83), smoothstep(0.0, 12.0, y));
       col *= mix(0.97, 1.0, smoothstep(0.0, 2.5, y));
-      vec2 g = abs(fract(vec2(ang * uRadius, y) / 1.1) - 0.5);
-      float grout = 1.0 - smoothstep(0.0, 0.01, 0.5 - max(g.x, g.y));
-      col *= 1.0 - grout * 0.06 * (1.0 - smoothstep(6.0, 14.0, y));
       col += c * warm * (through * 0.5 + bounced * 0.4) + warm * (through + bounced) * 0.03;
     }
 
