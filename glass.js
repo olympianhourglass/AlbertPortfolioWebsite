@@ -1,7 +1,14 @@
 // Glass tiles — stacked rounded blocks on a cream set, caustics thrown on the floor and wall.
 
 import * as THREE from "three";
-import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+
+function smooth(geo) {
+  geo.deleteAttribute("uv");
+  const welded = mergeVertices(geo, 1e-4);
+  welded.computeVertexNormals();
+  return welded;
+}
 function tileNormalMap(size = 256, cells = 3) {
   const height = new Float32Array(size * size);
   for (let y = 0; y < size; y++) {
@@ -154,7 +161,7 @@ function initGlass(section, canvas) {
   scene.add(new THREE.HemisphereLight("#fffaf0", "#e9dfcc", 0.3));
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
-  const MOD = { size: 1.5, height: 0.6, radius: 0.24, lip: 0.07 };
+  const MOD = { size: 1.5, height: 0.6, radius: 0.34, lip: 0.07 };
   const PITCH = MOD.height + MOD.lip;
   const GAP = 0.2;
   const STEP = MOD.size + GAP;
@@ -196,14 +203,30 @@ function initGlass(section, canvas) {
     });
     geo.rotateX(-Math.PI / 2);
     geo.translate(0, bevel, 0);
-    return geo;
+    return smooth(geo);
   }
 
-  const bodyGeo = new RoundedBoxGeometry(MOD.size, MOD.height, MOD.size, 16, MOD.radius);
+  // Rounded in plan, near-square in section: a straight extrusion with only a fine edge bevel.
+  function slabGeometry(size, height, r, bevel) {
+    const shape = roundedRect(size - bevel * 2, size - bevel * 2, r - bevel);
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: height - bevel * 2,
+      bevelEnabled: true,
+      bevelThickness: bevel,
+      bevelSize: bevel,
+      bevelSegments: 5,
+      curveSegments: 48,
+    });
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(0, -(height - bevel * 2) / 2, 0);
+    return smooth(geo);
+  }
+
+  const bodyGeo = slabGeometry(MOD.size, MOD.height, MOD.radius, 0.025);
   const rimOuter = MOD.size - 0.26;
-  const rimGeo = ringGeometry(rimOuter, 0.1, MOD.lip, 0.2);
+  const rimGeo = ringGeometry(rimOuter, 0.1, MOD.lip, MOD.radius - 0.13);
   rimGeo.translate(0, MOD.height / 2, 0);
-  const skirtGeo = ringGeometry(MOD.size - 0.06, (MOD.size - 0.06 - (rimOuter + 0.03)) / 2, MOD.lip, 0.22);
+  const skirtGeo = ringGeometry(MOD.size - 0.06, (MOD.size - 0.06 - (rimOuter + 0.03)) / 2, MOD.lip, MOD.radius - 0.03);
   skirtGeo.translate(0, -MOD.height / 2 - MOD.lip, 0);
 
   const normalMap = tileNormalMap();
