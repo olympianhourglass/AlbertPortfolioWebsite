@@ -85,21 +85,37 @@ const setVertex = /* glsl */ `
 
 // Soft occlusion toward the sun from each stack's box (xz centre, height). The longer the
 // ray runs through glass, the deeper the shade, so edges feather instead of cutting hard.
+// With physics on, the boxes are the loose blocks themselves (uBlocks: centre, w = live).
 const stackShadow = /* glsl */ `
+  uniform vec4 uBlocks[16];
+  uniform float uUseBlocks;
+
+  float boxOcc(vec3 p, vec3 inv, vec3 lo, vec3 hi) {
+    if (all(greaterThan(p, lo - 0.03)) && all(lessThan(p, hi + 0.03))) return 0.0;
+    vec3 t1 = (lo - p) * inv;
+    vec3 t2 = (hi - p) * inv;
+    vec3 tn = min(t1, t2);
+    vec3 tf = max(t1, t2);
+    float enter = max(max(tn.x, tn.y), max(tn.z, 0.0));
+    float leave = min(min(tf.x, tf.y), tf.z);
+    return smoothstep(0.0, 0.7, leave - enter);
+  }
+
   float stackShadow(vec3 p, vec3 L) {
     float occ = 0.0;
     vec3 inv = 1.0 / L;
+    if (uUseBlocks > 0.5) {
+      vec3 ext = vec3(0.75, 0.37, 0.75);
+      for (int k = 0; k < 16; k++) {
+        if (uBlocks[k].w < 0.5) continue;
+        occ = max(occ, boxOcc(p, inv, uBlocks[k].xyz - ext, uBlocks[k].xyz + ext));
+      }
+      return occ;
+    }
     for (int k = 0; k < 4; k++) {
       vec3 lo = vec3(uStacks[k].x - 0.75, 0.0, uStacks[k].y - 0.75);
       vec3 hi = vec3(uStacks[k].x + 0.75, uStacks[k].z, uStacks[k].y + 0.75);
-      if (all(greaterThan(p, lo - 0.03)) && all(lessThan(p, hi + 0.03))) continue;
-      vec3 t1 = (lo - p) * inv;
-      vec3 t2 = (hi - p) * inv;
-      vec3 tn = min(t1, t2);
-      vec3 tf = max(t1, t2);
-      float enter = max(max(tn.x, tn.y), max(tn.z, 0.0));
-      float leave = min(min(tf.x, tf.y), tf.z);
-      occ = max(occ, smoothstep(0.0, 0.7, leave - enter));
+      occ = max(occ, boxOcc(p, inv, lo, hi));
     }
     return occ;
   }
@@ -178,6 +194,15 @@ const setFragment = /* glsl */ `
           * (1.0 - smoothstep(0.6, 1.6, abs(b)));
         pool += m * (1.0 - 0.5 * clamp(a / max(reach, 0.01), 0.0, 1.0));
         ao += exp(-dot(d, d) * 1.6) * 0.6 + exp(-b * b * 2.5) * smoothstep(-0.5, 0.5, a) * (1.0 - smoothstep(0.0, reach, a)) * 0.25;
+      }
+      if (uUseBlocks > 0.5) {
+        for (int k = 0; k < 16; k++) {
+          if (uBlocks[k].w < 0.5) continue;
+          vec2 d = vWorld.xz - uBlocks[k].xz;
+          float near = exp(-max(uBlocks[k].y - 0.37, 0.0) * 1.5);
+          ao += exp(-dot(d, d) * 1.4) * 0.45 * near;
+          pool += exp(-dot(d + L2 * 0.9, d + L2 * 0.9) * 0.9) * 0.5 * near;
+        }
       }
       pool += 0.4 * (1.0 - smoothstep(2.5, 8.0, length(vWorld.xz)));
       pool = clamp(pool, 0.0, 1.4);
@@ -260,6 +285,7 @@ THEMES["grey-plain"] = { ...THEMES.grey, caustic: 0 };
 // Salmon always at the base, blue through the middle, white on top; only the counts vary.
 THEMES["grey-layered"] = {
   ...THEMES.grey,
+  physics: true,
   glass: 0.12,
   contrast: 1.25,
   layers: [
@@ -422,8 +448,13 @@ function initGlass(section, canvas, theme) {
     });
   }
 
+  const blockUniform = Array.from({ length: 16 }, () => new THREE.Vector4());
+  const useBlocks = { value: theme.physics ? 1 : 0 };
+
   // Stacks shade one another, each seam gets a contact line, and the glass carries a little black.
   const glassShade = {
+    uBlocks: { value: blockUniform },
+    uUseBlocks: useBlocks,
     uBody: { value: 1 - theme.glass },
     uEdge: { value: theme.edge },
     uContrast: { value: theme.contrast },
@@ -442,10 +473,10 @@ function initGlass(section, canvas, theme) {
     mat.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, glassShade);
       shader.vertexShader = shader.vertexShader
-        .replace("#include <common>", "#include <common>\nvarying vec3 vGlassWorld;")
+        .replace("#include <common>", "#include <common>\nvarying vec3 vGlassWorld;\nvarying float vGlassLocalY;")
         .replace(
           "#include <project_vertex>",
-          "#include <project_vertex>\nvGlassWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;"
+          "#include <project_vertex>\nvGlassWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvGlassLocalY = transformed.y;"
         );
       // Three's own transmission pass only holds opaque objects; refract our pass instead,
       // which also carries the other blocks.
@@ -458,6 +489,7 @@ function initGlass(section, canvas, theme) {
           "#include <common>",
           `#include <common>
           varying vec3 vGlassWorld;
+          varying float vGlassLocalY;
           uniform vec3 uStacks[4];
           uniform vec3 uLight;
           uniform float uPitch;
@@ -475,8 +507,7 @@ function initGlass(section, canvas, theme) {
         .replace(
           "#include <opaque_fragment>",
           `#include <opaque_fragment>
-          float seamY = (floor(vGlassWorld.y / uPitch + 0.5) * uPitch) + uLip * 0.5;
-          float seamD = (vGlassWorld.y - seamY) / 0.07;
+          float seamD = (abs(vGlassLocalY) - uPitch * 0.5) / 0.07;
           float seam = exp(-seamD * seamD);
           float occl = stackShadow(vGlassWorld, normalize(uLight));
           float facing = abs(dot(normalize(normal), normalize(vViewPosition)));
@@ -493,6 +524,7 @@ function initGlass(section, canvas, theme) {
   const stackUniform = [];
   const glassMeshes = [];
   const ghostColors = [];
+  const blocks = [];
   const group = new THREE.Group();
   scene.add(group);
   let k = 0;
@@ -507,6 +539,7 @@ function initGlass(section, canvas, theme) {
       block.add(...parts);
       block.position.set(col.at[0], MOD.lip + MOD.height / 2 + i * PITCH, col.at[1]);
       group.add(block);
+      blocks.push(block);
     }
     stackUniform.push(new THREE.Vector3(col.at[0], col.at[1], MOD.lip + col.count * PITCH));
   });
@@ -516,6 +549,115 @@ function initGlass(section, canvas, theme) {
     v.y -= STEP / 2;
   });
   glassShade.uStacks.value = stackUniform;
+
+  const tmp = new THREE.Vector3();
+  function syncBlockUniform() {
+    blocks.forEach((b, i) => {
+      if (i < blockUniform.length) blockUniform[i].set(b.position.x, b.position.y, b.position.z, 1);
+    });
+  }
+
+  // Real rigid bodies: click a block to punt it; double-click to restack.
+  let physics = null;
+  if (theme.physics) {
+    group.updateMatrixWorld(true);
+    blocks.forEach((b) => scene.attach(b));
+    stackUniform.forEach((v) => v.set(1000, 1000, 0));
+    syncBlockUniform();
+    import("https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js").then((CANNON) => {
+      physics = createPhysics(CANNON);
+    });
+  }
+
+  function createPhysics(CANNON) {
+    const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0), allowSleep: true });
+    world.solver.iterations = 20;
+    world.defaultContactMaterial.friction = 0.45;
+    world.defaultContactMaterial.restitution = 0.12;
+
+    const ground = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane() });
+    ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    world.addBody(ground);
+    const fence = 28;
+    for (let i = 0; i < fence; i++) {
+      const a = (i / fence) * Math.PI * 2;
+      const post = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(2, 6, 0.4)) });
+      post.position.set(Math.cos(a) * (RADIUS - 0.6), 6, Math.sin(a) * (RADIUS - 0.6));
+      post.quaternion.setFromEuler(0, -a + Math.PI / 2, 0);
+      world.addBody(post);
+    }
+
+    // The collider is the body plus rim; the skirt nests over the block below, as it does visually.
+    const shape = new CANNON.Box(new CANNON.Vec3(MOD.size / 2, PITCH / 2, MOD.size / 2));
+    const rest = blocks.map((b) => b.position.clone());
+    const bodies = blocks.map((b) => {
+      const body = new CANNON.Body({
+        mass: 1,
+        linearDamping: 0.05,
+        angularDamping: 0.08,
+        sleepSpeedLimit: 0.15,
+        sleepTimeLimit: 0.5,
+      });
+      body.addShape(shape, new CANNON.Vec3(0, -MOD.lip / 2, 0));
+      body.position.set(b.position.x, b.position.y, b.position.z);
+      world.addBody(body);
+      body.sleep();
+      return body;
+    });
+
+    function kick(i, point, dir) {
+      const body = bodies[i];
+      bodies.forEach((b) => b.wakeUp());
+      const push = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+      push.y = 0.75;
+      push.normalize().multiplyScalar(12);
+      body.applyImpulse(
+        new CANNON.Vec3(push.x, push.y, push.z),
+        new CANNON.Vec3(point.x - body.position.x, point.y - body.position.y, point.z - body.position.z)
+      );
+    }
+
+    function restack() {
+      bodies.forEach((body, i) => {
+        body.position.set(rest[i].x, rest[i].y, rest[i].z);
+        body.quaternion.set(0, 0, 0, 1);
+        body.velocity.setZero();
+        body.angularVelocity.setZero();
+        body.sleep();
+      });
+    }
+
+    function step(dt) {
+      world.step(1 / 60, dt, 4);
+      bodies.forEach((body, i) => {
+        blocks[i].position.copy(body.position);
+        blocks[i].quaternion.copy(body.quaternion);
+      });
+      syncBlockUniform();
+    }
+
+    return { kick, restack, step };
+  }
+
+  if (theme.physics) {
+    const ray = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const hitAt = (e) => {
+      const r = canvas.getBoundingClientRect();
+      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      return ray.intersectObjects(glassMeshes, false)[0];
+    };
+    canvas.addEventListener("pointermove", (e) => {
+      canvas.style.cursor = hitAt(e) ? "pointer" : "default";
+    });
+    canvas.addEventListener("pointerdown", (e) => {
+      const hit = hitAt(e);
+      if (!hit || !physics) return;
+      physics.kick(blocks.indexOf(hit.object.parent), hit.point, ray.ray.direction);
+    });
+    canvas.addEventListener("dblclick", () => physics?.restack());
+  }
 
   // What the glass sees through itself: the set plus every block as a faint, reflective ghost.
   const behindTarget = new THREE.WebGLRenderTarget(1, 1, {
@@ -569,6 +711,8 @@ function initGlass(section, canvas, theme) {
     uAO: { value: theme.ao },
     uVignette: { value: theme.vignette },
     uGrain: { value: theme.grain },
+    uBlocks: { value: blockUniform },
+    uUseBlocks: useBlocks,
   });
   const floorMat = new THREE.ShaderMaterial({
     uniforms: setUniforms(0),
@@ -669,6 +813,7 @@ function initGlass(section, canvas, theme) {
   window.addEventListener("resize", resize);
 
   const clock = new THREE.Clock();
+  let last = 0;
   let running = true;
   const io = new IntersectionObserver(
     (entries) => {
@@ -681,7 +826,10 @@ function initGlass(section, canvas, theme) {
   function loop() {
     requestAnimationFrame(loop);
     if (!running) return;
-    const t = reduceMotion ? 4 : clock.getElapsedTime();
+    const now = clock.getElapsedTime();
+    physics?.step(Math.min(now - last, 0.1));
+    last = now;
+    const t = reduceMotion ? 4 : now;
     floorMat.uniforms.uTime.value = t;
     wallMat.uniforms.uTime.value = t;
     glassShade.uTime.value = t;
