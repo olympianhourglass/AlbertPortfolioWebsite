@@ -116,6 +116,9 @@ const setFragment = /* glsl */ `
   uniform vec3 uWarm;
   uniform float uTopCaustic;
   uniform float uHeight;
+  uniform float uShadow;
+  uniform float uAO;
+  uniform float uVignette;
   varying vec3 vWorld;
   ${stackShadow}
 
@@ -166,11 +169,11 @@ const setFragment = /* glsl */ `
       }
       pool += 0.4 * (1.0 - smoothstep(2.5, 8.0, length(vWorld.xz)));
       pool = clamp(pool, 0.0, 1.4);
-      col *= 1.0 - clamp(ao, 0.0, 1.0) * 0.2;
+      col *= 1.0 - clamp(ao, 0.0, 1.0) * uAO;
       vec3 c = causticRGB(vWorld.xz * 0.34, t);
       col += (c * pool * warm * 1.1 + pool * 0.06 * warm) * lift;
-      col *= 1.0 - stackShadow(vWorld, normalize(uLight)) * 0.3;
-      col *= mix(1.0, 0.97, smoothstep(5.0, uRadius, length(vWorld.xz)));
+      col *= 1.0 - stackShadow(vWorld, normalize(uLight)) * uShadow;
+      col *= mix(1.0, 0.97 - uVignette, smoothstep(5.0, uRadius, length(vWorld.xz)));
     } else {
       float ang = atan(vWorld.z, vWorld.x);
       float y = vWorld.y;
@@ -184,7 +187,7 @@ const setFragment = /* glsl */ `
       vec2 uv = vec2(ang * uRadius * 0.16, y * 0.22);
       vec3 c = causticRGB(uv, t * 0.8);
       col = mix(uBase, uTop, smoothstep(0.0, 12.0, y));
-      col *= mix(0.97, 1.0, smoothstep(0.0, 2.5, y));
+      col *= mix(0.97 - uVignette, 1.0 - uVignette * 0.5, smoothstep(0.0, 2.5, y));
       col += (c * warm * (through * 0.7 + bounced * 0.5) + warm * (through + bounced) * 0.03) * lift;
     }
 
@@ -204,6 +207,14 @@ const THEMES = {
     glass: 0.04,
     edge: 0,
     topCaustic: 1,
+    contrast: 1,
+    shadow: 0.3,
+    ao: 0.2,
+    occl: 0.2,
+    seam: 0.14,
+    vignette: 0,
+    studio: false,
+    env: 1.15,
   },
   grey: {
     background: "#e3e3e3",
@@ -213,8 +224,17 @@ const THEMES = {
     ground: "#d4d4d4",
     // Two stacked 20% black layers: 1 - 0.8 × 0.8.
     glass: 0.36,
-    edge: 0.85,
+    edge: 0.92,
     topCaustic: 0.55,
+    contrast: 1.4,
+    shadow: 0.5,
+    ao: 0.34,
+    occl: 0.4,
+    seam: 0.28,
+    vignette: 0.1,
+    // Ring of strip lights and black cards: highlights and darks sweep across the glass as it turns.
+    studio: true,
+    env: 1.5,
   },
 };
 
@@ -351,11 +371,11 @@ function initGlass(section, canvas, theme) {
       attenuationColor: new THREE.Color(t.tint),
       attenuationDistance: t.dist,
       specularIntensity: 1,
-      clearcoat: 0.6,
+      clearcoat: theme.studio ? 1 : 0.6,
       clearcoatRoughness: 0.02,
       normalMap,
       normalScale: new THREE.Vector2(0.28, 0.28),
-      envMapIntensity: 1.15,
+      envMapIntensity: theme.env,
     });
   }
 
@@ -363,6 +383,9 @@ function initGlass(section, canvas, theme) {
   const glassShade = {
     uBody: { value: 1 - theme.glass },
     uEdge: { value: theme.edge },
+    uContrast: { value: theme.contrast },
+    uOccl: { value: theme.occl },
+    uSeam: { value: theme.seam },
     uStacks: { value: null },
     uLight: { value: light },
     uPitch: { value: PITCH },
@@ -388,6 +411,9 @@ function initGlass(section, canvas, theme) {
           uniform float uLip;
           uniform float uBody;
           uniform float uEdge;
+          uniform float uContrast;
+          uniform float uOccl;
+          uniform float uSeam;
           ${stackShadow}`
         )
         .replace(
@@ -398,9 +424,10 @@ function initGlass(section, canvas, theme) {
           float seam = exp(-seamD * seamD);
           float occl = stackShadow(vGlassWorld, normalize(uLight));
           float facing = abs(dot(normalize(normal), normalize(vViewPosition)));
-          float fres = pow(1.0 - facing, 2.5);
+          float fres = pow(1.0 - facing, 2.0);
           gl_FragColor.rgb *= 1.0 - uEdge * fres;
-          gl_FragColor.rgb *= uBody * (1.0 - occl * 0.2) * (1.0 - seam * 0.14);`
+          gl_FragColor.rgb *= uBody * (1.0 - occl * uOccl) * (1.0 - seam * uSeam);
+          gl_FragColor.rgb = max((gl_FragColor.rgb - 0.35) * uContrast + 0.35, 0.0);`
         );
     };
     return mat;
@@ -443,6 +470,9 @@ function initGlass(section, canvas, theme) {
     uWarm: { value: new THREE.Vector3(...theme.warm) },
     uTopCaustic: { value: theme.topCaustic },
     uHeight: { value: 1 },
+    uShadow: { value: theme.shadow },
+    uAO: { value: theme.ao },
+    uVignette: { value: theme.vignette },
   });
   const floorMat = new THREE.ShaderMaterial({
     uniforms: setUniforms(0),
@@ -493,6 +523,19 @@ function initGlass(section, canvas, theme) {
     card.position.set(x, y, z);
     card.lookAt(0, 1.5, 0);
     envScene.add(card);
+  }
+  if (theme.studio) {
+    const strip = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 5, 4.8), side: THREE.DoubleSide });
+    const black = new THREE.MeshBasicMaterial({ color: "#050505", side: THREE.DoubleSide });
+    const n = 10;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const lit = i % 2 === 0;
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(lit ? 0.9 : 2.6, 9), lit ? strip : black);
+      panel.position.set(Math.cos(a) * 8.5, 3.5, Math.sin(a) * 8.5);
+      panel.lookAt(0, 3.5, 0);
+      envScene.add(panel);
+    }
   }
   envScene.position.y = -1.2;
   scene.environment = pmrem.fromScene(envScene, 0.02).texture;
