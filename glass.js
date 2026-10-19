@@ -257,6 +257,23 @@ const THEMES = {
   },
 };
 THEMES["grey-plain"] = { ...THEMES.grey, caustic: 0 };
+// Salmon always at the base, blue through the middle, white on top; only the counts vary.
+THEMES["grey-layered"] = {
+  ...THEMES.grey,
+  glass: 0.12,
+  contrast: 1.25,
+  layers: [
+    { color: "#f59a94", tint: "#ec655f", dist: 2.4, rough: 0.02, ghost: "#ec655f" },
+    { color: "#c5d5e4", tint: "#b5cadd", dist: 1.6, rough: 0.01, ghost: "#b5cadd" },
+    { color: "#ffffff", tint: "#ffffff", dist: 50, rough: 0.2, ghost: "#f4f4f4" },
+  ],
+  stacks: [
+    [2, 2, 1],
+    [1, 2, 1],
+    [2, 1, 1],
+    [1, 1, 1],
+  ],
+};
 
 function initGlass(section, canvas, theme) {
   const reduceMotion = window.matchMedia(
@@ -284,12 +301,14 @@ function initGlass(section, canvas, theme) {
   const PITCH = MOD.height + MOD.lip;
   const GAP = 0.2;
   const STEP = MOD.size + GAP;
-  const columns = [
-    { at: [0, 0], count: 5 },
-    { at: [STEP, 0], count: 3 },
-    { at: [0, STEP], count: 2 },
-    { at: [STEP, STEP], count: 1 },
-  ];
+  const spots = [[0, 0], [STEP, 0], [0, STEP], [STEP, STEP]];
+  // A layered theme lists each stack bottom-up as layer counts, e.g. [salmon, blue, white].
+  const columns = theme.stacks
+    ? theme.stacks.map((counts, c) => {
+        const layers = counts.flatMap((n, li) => Array(n).fill(theme.layers[li]));
+        return { at: spots[c], count: layers.length, layers };
+      })
+    : [5, 3, 2, 1].map((count, c) => ({ at: spots[c], count }));
 
   // Superellipse corners (x⁴ + y⁴ = 1): curvature eases to zero where they meet the straight sides,
   // so there's no visible break between edge and radius. The extent is scaled up to read like radius r.
@@ -379,10 +398,10 @@ function initGlass(section, canvas, theme) {
     { tint: "#cdeee2", dist: 7, rough: 0.0, ior: 1.53 },
   ];
 
-  function glassFor(k) {
-    const t = tints[k % tints.length];
+  function glassFor(k, layer) {
+    const t = layer ? { ...tints[k % tints.length], ...layer } : tints[k % tints.length];
     return new THREE.MeshPhysicalMaterial({
-      color: "#ffffff",
+      color: t.color || "#ffffff",
       metalness: 0,
       roughness: t.rough,
       transmission: 1,
@@ -472,15 +491,18 @@ function initGlass(section, canvas, theme) {
 
   const stackUniform = [];
   const glassMeshes = [];
+  const ghostColors = [];
   const group = new THREE.Group();
   scene.add(group);
   let k = 0;
   columns.forEach((col) => {
     for (let i = 0; i < col.count; i++) {
-      const mat = shadeGlass(glassFor(k++ * 5 + 1));
+      const layer = col.layers?.[i];
+      const mat = shadeGlass(glassFor(k++ * 5 + 1, layer));
       const block = new THREE.Group();
       const parts = [bodyGeo, rimGeo, skirtGeo].map((g) => new THREE.Mesh(g, mat));
       glassMeshes.push(...parts);
+      parts.forEach(() => ghostColors.push(layer?.ghost || theme.ghost));
       block.add(...parts);
       block.position.set(col.at[0], MOD.lip + MOD.height / 2 + i * PITCH, col.at[1]);
       group.add(block);
@@ -502,20 +524,27 @@ function initGlass(section, canvas, theme) {
     minFilter: THREE.LinearMipmapLinearFilter,
   });
   glassShade.uBehind.value = behindTarget.texture;
-  const ghost = new THREE.MeshPhysicalMaterial({
-    color: theme.ghost,
-    metalness: 0,
-    roughness: 0.04,
-    clearcoat: 1,
-    clearcoatRoughness: 0.02,
-    envMapIntensity: theme.env,
-    transparent: true,
-    opacity: theme.ghostOpacity,
-    depthWrite: false,
-  });
+  const ghosts = new Map();
+  const ghostFor = (color) => {
+    if (!ghosts.has(color)) {
+      ghosts.set(color, new THREE.MeshPhysicalMaterial({
+        color,
+        metalness: 0,
+        roughness: 0.04,
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
+        envMapIntensity: theme.env,
+        transparent: true,
+        opacity: theme.ghostOpacity,
+        depthWrite: false,
+      }));
+    }
+    return ghosts.get(color);
+  };
+  const ghostMats = ghostColors.map(ghostFor);
   const glassMats = glassMeshes.map((m) => m.material);
   function renderBehind() {
-    glassMeshes.forEach((m) => (m.material = ghost));
+    glassMeshes.forEach((m, i) => (m.material = ghostMats[i]));
     renderer.setRenderTarget(behindTarget);
     renderer.render(scene, camera);
     renderer.setRenderTarget(null);
