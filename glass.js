@@ -161,7 +161,7 @@ const setFragment = /* glsl */ `
     vec3 col = uBase;
     vec2 L2 = normalize(-uLight.xz);
     float t = uTime * 0.55;
-    float lift = mix(1.0, uTopCaustic, smoothstep(0.4, 0.75, gl_FragCoord.y / uHeight)) * uCaustic;
+    float lift = mix(1.0, uTopCaustic, smoothstep(0.38, 0.56, gl_FragCoord.y / uHeight)) * uCaustic;
 
     if (uWall < 0.5) {
       float slope = length(uLight.xz) / max(uLight.y, 0.1);
@@ -241,7 +241,7 @@ const THEMES = {
     // Two stacked 20% black layers: 1 - 0.8 × 0.8.
     glass: 0.36,
     edge: 0.92,
-    topCaustic: 0.55,
+    topCaustic: 0,
     contrast: 1.4,
     shadow: 0.5,
     ao: 0.34,
