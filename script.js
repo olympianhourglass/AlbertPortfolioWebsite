@@ -13,6 +13,7 @@ const EXPERIMENT_IDS = new Set([
   "showcase-hud-cream",
   "showcase-glass",
   "showcase-glass-grey",
+  "showcase-glass-plain",
   "showcase",
   "showcase-play",
   "showcase-toys",

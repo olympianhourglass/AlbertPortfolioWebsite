@@ -124,6 +124,7 @@ const setFragment = /* glsl */ `
   uniform vec3 uTop;
   uniform vec3 uWarm;
   uniform float uTopCaustic;
+  uniform float uCaustic;
   uniform float uHeight;
   uniform float uShadow;
   uniform float uAO;
@@ -160,7 +161,7 @@ const setFragment = /* glsl */ `
     vec3 col = uBase;
     vec2 L2 = normalize(-uLight.xz);
     float t = uTime * 0.55;
-    float lift = mix(1.0, uTopCaustic, smoothstep(0.4, 0.75, gl_FragCoord.y / uHeight));
+    float lift = mix(1.0, uTopCaustic, smoothstep(0.4, 0.75, gl_FragCoord.y / uHeight)) * uCaustic;
 
     if (uWall < 0.5) {
       float slope = length(uLight.xz) / max(uLight.y, 0.1);
@@ -255,6 +256,7 @@ const THEMES = {
     env: 1.5,
   },
 };
+THEMES["grey-plain"] = { ...THEMES.grey, caustic: 0 };
 
 function initGlass(section, canvas, theme) {
   const reduceMotion = window.matchMedia(
@@ -531,6 +533,7 @@ function initGlass(section, canvas, theme) {
     uTop: { value: new THREE.Vector3(...theme.top) },
     uWarm: { value: new THREE.Vector3(...theme.warm) },
     uTopCaustic: { value: theme.topCaustic },
+    uCaustic: { value: theme.caustic ?? 1 },
     uHeight: { value: 1 },
     uShadow: { value: theme.shadow },
     uAO: { value: theme.ao },
