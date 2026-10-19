@@ -114,6 +114,8 @@ const setFragment = /* glsl */ `
   uniform vec3 uBase;
   uniform vec3 uTop;
   uniform vec3 uWarm;
+  uniform float uTopCaustic;
+  uniform float uHeight;
   varying vec3 vWorld;
   ${stackShadow}
 
@@ -144,6 +146,7 @@ const setFragment = /* glsl */ `
     vec3 col = uBase;
     vec2 L2 = normalize(-uLight.xz);
     float t = uTime * 0.55;
+    float lift = mix(1.0, uTopCaustic, smoothstep(0.4, 0.75, gl_FragCoord.y / uHeight));
 
     if (uWall < 0.5) {
       float slope = length(uLight.xz) / max(uLight.y, 0.1);
@@ -165,7 +168,7 @@ const setFragment = /* glsl */ `
       pool = clamp(pool, 0.0, 1.4);
       col *= 1.0 - clamp(ao, 0.0, 1.0) * 0.2;
       vec3 c = causticRGB(vWorld.xz * 0.34, t);
-      col += c * pool * warm * 1.1 + pool * 0.06 * warm;
+      col += (c * pool * warm * 1.1 + pool * 0.06 * warm) * lift;
       col *= 1.0 - stackShadow(vWorld, normalize(uLight)) * 0.3;
       col *= mix(1.0, 0.97, smoothstep(5.0, uRadius, length(vWorld.xz)));
     } else {
@@ -182,7 +185,7 @@ const setFragment = /* glsl */ `
       vec3 c = causticRGB(uv, t * 0.8);
       col = mix(uBase, uTop, smoothstep(0.0, 12.0, y));
       col *= mix(0.97, 1.0, smoothstep(0.0, 2.5, y));
-      col += c * warm * (through * 0.7 + bounced * 0.5) + warm * (through + bounced) * 0.03;
+      col += (c * warm * (through * 0.7 + bounced * 0.5) + warm * (through + bounced) * 0.03) * lift;
     }
 
     gl_FragColor = vec4(col, 1.0);
@@ -199,6 +202,8 @@ const THEMES = {
     warm: [1.0, 0.94, 0.82],
     ground: "#e9dfcc",
     glass: 0.04,
+    edge: 0,
+    topCaustic: 1,
   },
   grey: {
     background: "#e3e3e3",
@@ -206,7 +211,10 @@ const THEMES = {
     top: [0.8, 0.8, 0.8],
     warm: [1.0, 0.98, 0.95],
     ground: "#d4d4d4",
-    glass: 0.2,
+    // Two stacked 20% black layers: 1 - 0.8 × 0.8.
+    glass: 0.36,
+    edge: 0.85,
+    topCaustic: 0.55,
   },
 };
 
@@ -354,6 +362,7 @@ function initGlass(section, canvas, theme) {
   // Stacks shade one another, each seam gets a contact line, and the glass carries a little black.
   const glassShade = {
     uBody: { value: 1 - theme.glass },
+    uEdge: { value: theme.edge },
     uStacks: { value: null },
     uLight: { value: light },
     uPitch: { value: PITCH },
@@ -378,6 +387,7 @@ function initGlass(section, canvas, theme) {
           uniform float uPitch;
           uniform float uLip;
           uniform float uBody;
+          uniform float uEdge;
           ${stackShadow}`
         )
         .replace(
@@ -387,6 +397,9 @@ function initGlass(section, canvas, theme) {
           float seamD = (vGlassWorld.y - seamY) / 0.07;
           float seam = exp(-seamD * seamD);
           float occl = stackShadow(vGlassWorld, normalize(uLight));
+          float facing = abs(dot(normalize(normal), normalize(vViewPosition)));
+          float fres = pow(1.0 - facing, 2.5);
+          gl_FragColor.rgb *= 1.0 - uEdge * fres;
           gl_FragColor.rgb *= uBody * (1.0 - occl * 0.2) * (1.0 - seam * 0.14);`
         );
     };
@@ -428,6 +441,8 @@ function initGlass(section, canvas, theme) {
     uBase: { value: new THREE.Vector3(...theme.base) },
     uTop: { value: new THREE.Vector3(...theme.top) },
     uWarm: { value: new THREE.Vector3(...theme.warm) },
+    uTopCaustic: { value: theme.topCaustic },
+    uHeight: { value: 1 },
   });
   const floorMat = new THREE.ShaderMaterial({
     uniforms: setUniforms(0),
@@ -500,6 +515,9 @@ function initGlass(section, canvas, theme) {
     const h = section.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
+    const px = h * renderer.getPixelRatio();
+    floorMat.uniforms.uHeight.value = px;
+    wallMat.uniforms.uHeight.value = px;
     camera.aspect = w / h;
     camera.fov = w / h < 1 ? 46 : 34;
     camera.updateProjectionMatrix();
