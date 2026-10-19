@@ -1,13 +1,38 @@
 // Glass tiles — stacked rounded blocks on a cream set, caustics thrown on the floor and wall.
 
 import * as THREE from "three";
-import { mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
-
+// Caps stay dead flat; only the walls and bevels share normals, so the plan corner shades as one curve.
 function smooth(geo) {
   geo.deleteAttribute("uv");
-  const welded = mergeVertices(geo, 1e-4);
-  welded.computeVertexNormals();
-  return welded;
+  const pos = geo.attributes.position.array;
+  const normals = new Float32Array(pos.length);
+  const capCount = geo.groups.find((g) => g.materialIndex === 0)?.count ?? 0;
+  const key = (i) => `${Math.round(pos[i] * 1e4)},${Math.round(pos[i + 1] * 1e4)},${Math.round(pos[i + 2] * 1e4)}`;
+  const shared = new Map();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let v = 0; v < pos.length / 3; v += 3) {
+    a.fromArray(pos, v * 3);
+    b.fromArray(pos, v * 3 + 3);
+    c.fromArray(pos, v * 3 + 6);
+    const face = b.sub(a).cross(c.sub(a));
+    for (let k = 0; k < 3; k++) {
+      const i = (v + k) * 3;
+      if (v < capCount) {
+        const n = face.clone().normalize();
+        normals.set([n.x, n.y, n.z], i);
+      } else {
+        const id = key(i);
+        const sum = shared.get(id) || shared.set(id, new THREE.Vector3()).get(id);
+        sum.add(face);
+      }
+    }
+  }
+  for (let v = capCount; v < pos.length / 3; v++) {
+    const n = shared.get(key(v * 3)).clone().normalize();
+    normals.set([n.x, n.y, n.z], v * 3);
+  }
+  geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  return geo;
 }
 function tileNormalMap(size = 256, cells = 3) {
   const height = new Float32Array(size * size);
@@ -172,20 +197,38 @@ function initGlass(section, canvas) {
     { at: [STEP, STEP], count: 1 },
   ];
 
+  // Superellipse corners (x⁴ + y⁴ = 1): curvature eases to zero where they meet the straight sides,
+  // so there's no visible break between edge and radius. The extent is scaled up to read like radius r.
+  const QUARTER = (() => {
+    const half = 24;
+    const m = Math.pow(0.5, 0.25);
+    const pts = [];
+    for (let i = 0; i <= half; i++) {
+      const y = (m * i) / half;
+      pts.push([Math.pow(1 - y ** 4, 0.25), y]);
+    }
+    for (let i = half - 1; i >= 0; i--) {
+      const x = (m * i) / half;
+      pts.push([x, Math.pow(1 - x ** 4, 0.25)]);
+    }
+    return pts;
+  })();
+
   function roundedRect(w, d, r) {
-    const s = new THREE.Shape();
-    const x = -w / 2;
-    const y = -d / 2;
-    s.moveTo(x + r, y);
-    s.lineTo(x + w - r, y);
-    s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
-    s.lineTo(x + w, y + d - r);
-    s.absarc(x + w - r, y + d - r, r, 0, Math.PI / 2, false);
-    s.lineTo(x + r, y + d);
-    s.absarc(x + r, y + d - r, r, Math.PI / 2, Math.PI, false);
-    s.lineTo(x, y + r);
-    s.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
-    return s;
+    const R = Math.min(r * 1.6, w / 2, d / 2);
+    const cx = w / 2 - R;
+    const cy = d / 2 - R;
+    const centers = [[cx, cy], [-cx, cy], [-cx, -cy], [cx, -cy]];
+    const pts = [];
+    centers.forEach(([ox, oy], q) => {
+      for (const [px, py] of QUARTER) {
+        const [rx, ry] = [[px, py], [-py, px], [-px, -py], [py, -px]][q];
+        const p = new THREE.Vector2(ox + rx * R, oy + ry * R);
+        if (!pts.length || p.distanceTo(pts[pts.length - 1]) > 1e-6) pts.push(p);
+      }
+    });
+    if (pts[0].distanceTo(pts[pts.length - 1]) < 1e-6) pts.pop();
+    return new THREE.Shape(pts);
   }
 
   function ringGeometry(outer, band, height, r) {
