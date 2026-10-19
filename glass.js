@@ -111,6 +111,9 @@ const setFragment = /* glsl */ `
   uniform float uRadius;
   uniform vec3 uLight;
   uniform vec3 uStacks[4];
+  uniform vec3 uBase;
+  uniform vec3 uTop;
+  uniform vec3 uWarm;
   varying vec3 vWorld;
   ${stackShadow}
 
@@ -137,9 +140,8 @@ const setFragment = /* glsl */ `
   }
 
   void main() {
-    vec3 cream = vec3(0.89, 0.84, 0.75);
-    vec3 warm = vec3(1.0, 0.94, 0.82);
-    vec3 col = cream;
+    vec3 warm = uWarm;
+    vec3 col = uBase;
     vec2 L2 = normalize(-uLight.xz);
     float t = uTime * 0.55;
 
@@ -178,7 +180,7 @@ const setFragment = /* glsl */ `
       float bounced = exp(-db * db * 2.2) * band * 0.6;
       vec2 uv = vec2(ang * uRadius * 0.16, y * 0.22);
       vec3 c = causticRGB(uv, t * 0.8);
-      col = mix(cream, vec3(0.93, 0.9, 0.83), smoothstep(0.0, 12.0, y));
+      col = mix(uBase, uTop, smoothstep(0.0, 12.0, y));
       col *= mix(0.97, 1.0, smoothstep(0.0, 2.5, y));
       col += c * warm * (through * 0.7 + bounced * 0.5) + warm * (through + bounced) * 0.03;
     }
@@ -188,7 +190,27 @@ const setFragment = /* glsl */ `
   }
 `;
 
-function initGlass(section, canvas) {
+// Set colours are linear (the shader converts to sRGB); `glass` is how much black sits in the body.
+const THEMES = {
+  cream: {
+    background: "#f3eee3",
+    base: [0.89, 0.84, 0.75],
+    top: [0.93, 0.9, 0.83],
+    warm: [1.0, 0.94, 0.82],
+    ground: "#e9dfcc",
+    glass: 0.04,
+  },
+  grey: {
+    background: "#e3e3e3",
+    base: [0.768, 0.768, 0.768],
+    top: [0.8, 0.8, 0.8],
+    warm: [1.0, 0.98, 0.95],
+    ground: "#d4d4d4",
+    glass: 0.2,
+  },
+};
+
+function initGlass(section, canvas, theme) {
   const reduceMotion = window.matchMedia(
     "(prefers-reduced-motion: reduce)"
   ).matches;
@@ -198,7 +220,7 @@ function initGlass(section, canvas) {
   renderer.toneMapping = THREE.NoToneMapping;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#f3eee3");
+  scene.background = new THREE.Color(theme.background);
   const pmrem = new THREE.PMREMGenerator(renderer);
 
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
@@ -207,7 +229,7 @@ function initGlass(section, canvas) {
   const sun = new THREE.DirectionalLight("#fff6e8", 1.1);
   sun.position.copy(light).multiplyScalar(12);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight("#fffaf0", "#e9dfcc", 0.3));
+  scene.add(new THREE.HemisphereLight("#fffaf0", theme.ground, 0.3));
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
   const MOD = { size: 1.5, height: 0.6, radius: 0.34, lip: 0.07 };
@@ -329,8 +351,9 @@ function initGlass(section, canvas) {
     });
   }
 
-  // Stacks shade one another, each seam gets a contact line, and the glass carries 4% black.
+  // Stacks shade one another, each seam gets a contact line, and the glass carries a little black.
   const glassShade = {
+    uBody: { value: 1 - theme.glass },
     uStacks: { value: null },
     uLight: { value: light },
     uPitch: { value: PITCH },
@@ -354,6 +377,7 @@ function initGlass(section, canvas) {
           uniform vec3 uLight;
           uniform float uPitch;
           uniform float uLip;
+          uniform float uBody;
           ${stackShadow}`
         )
         .replace(
@@ -363,7 +387,7 @@ function initGlass(section, canvas) {
           float seamD = (vGlassWorld.y - seamY) / 0.07;
           float seam = exp(-seamD * seamD);
           float occl = stackShadow(vGlassWorld, normalize(uLight));
-          gl_FragColor.rgb *= 0.96 * (1.0 - occl * 0.2) * (1.0 - seam * 0.14);`
+          gl_FragColor.rgb *= uBody * (1.0 - occl * 0.2) * (1.0 - seam * 0.14);`
         );
     };
     return mat;
@@ -401,6 +425,9 @@ function initGlass(section, canvas) {
     uRadius: { value: RADIUS },
     uLight: { value: light },
     uStacks: { value: stackUniform },
+    uBase: { value: new THREE.Vector3(...theme.base) },
+    uTop: { value: new THREE.Vector3(...theme.top) },
+    uWarm: { value: new THREE.Vector3(...theme.warm) },
   });
   const floorMat = new THREE.ShaderMaterial({
     uniforms: setUniforms(0),
@@ -502,6 +529,7 @@ function initGlass(section, canvas) {
   loop();
 }
 
-const section = document.getElementById("showcase-glass");
-const canvas = section?.querySelector(".glass-canvas");
-if (section && canvas) initGlass(section, canvas);
+document.querySelectorAll(".showcase-glass").forEach((section) => {
+  const canvas = section.querySelector(".glass-canvas");
+  if (canvas) initGlass(section, canvas, THEMES[section.dataset.glass] || THEMES.cream);
+});

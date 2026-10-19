@@ -474,6 +474,10 @@ body {
   margin: 0;
 }
 
+.showcase-glass-grey {
+  background: #e3e3e3;
+}
+
 .cloud-canvas,
 .cloth-canvas,
 .breath-canvas,
