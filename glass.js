@@ -226,6 +226,8 @@ const THEMES = {
     seam: 0.14,
     vignette: 0,
     grain: 0,
+    ghost: "#e4efe9",
+    ghostOpacity: 0.32,
     studio: false,
     env: 1.15,
   },
@@ -246,6 +248,8 @@ const THEMES = {
     seam: 0.28,
     vignette: 0.1,
     grain: 0.035,
+    ghost: "#8c8f8e",
+    ghostOpacity: 0.42,
     // Ring of strip lights and black cards: highlights and darks sweep across the glass as it turns.
     studio: true,
     env: 1.5,
@@ -405,6 +409,8 @@ function initGlass(section, canvas, theme) {
     uSeam: { value: theme.seam },
     uGrain: { value: theme.grain },
     uTime: { value: 0 },
+    uBehind: { value: null },
+    uBehindSize: { value: new THREE.Vector2(1, 1) },
     uStacks: { value: null },
     uLight: { value: light },
     uPitch: { value: PITCH },
@@ -419,7 +425,13 @@ function initGlass(section, canvas, theme) {
           "#include <project_vertex>",
           "#include <project_vertex>\nvGlassWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;"
         );
+      // Three's own transmission pass only holds opaque objects; refract our pass instead,
+      // which also carries the other blocks.
+      const behind = THREE.ShaderChunk.transmission_pars_fragment
+        .replaceAll("transmissionSamplerMap", "uBehind")
+        .replaceAll("transmissionSamplerSize", "uBehindSize");
       shader.fragmentShader = shader.fragmentShader
+        .replace("#include <transmission_pars_fragment>", behind)
         .replace(
           "#include <common>",
           `#include <common>
@@ -457,6 +469,7 @@ function initGlass(section, canvas, theme) {
   }
 
   const stackUniform = [];
+  const glassMeshes = [];
   const group = new THREE.Group();
   scene.add(group);
   let k = 0;
@@ -464,11 +477,9 @@ function initGlass(section, canvas, theme) {
     for (let i = 0; i < col.count; i++) {
       const mat = shadeGlass(glassFor(k++ * 5 + 1));
       const block = new THREE.Group();
-      block.add(
-        new THREE.Mesh(bodyGeo, mat),
-        new THREE.Mesh(rimGeo, mat),
-        new THREE.Mesh(skirtGeo, mat)
-      );
+      const parts = [bodyGeo, rimGeo, skirtGeo].map((g) => new THREE.Mesh(g, mat));
+      glassMeshes.push(...parts);
+      block.add(...parts);
       block.position.set(col.at[0], MOD.lip + MOD.height / 2 + i * PITCH, col.at[1]);
       group.add(block);
     }
@@ -480,6 +491,34 @@ function initGlass(section, canvas, theme) {
     v.y -= STEP / 2;
   });
   glassShade.uStacks.value = stackUniform;
+
+  // What the glass sees through itself: the set plus every block as a faint, reflective ghost.
+  const behindTarget = new THREE.WebGLRenderTarget(1, 1, {
+    type: THREE.HalfFloatType,
+    samples: 4,
+    generateMipmaps: true,
+    minFilter: THREE.LinearMipmapLinearFilter,
+  });
+  glassShade.uBehind.value = behindTarget.texture;
+  const ghost = new THREE.MeshPhysicalMaterial({
+    color: theme.ghost,
+    metalness: 0,
+    roughness: 0.04,
+    clearcoat: 1,
+    clearcoatRoughness: 0.02,
+    envMapIntensity: theme.env,
+    transparent: true,
+    opacity: theme.ghostOpacity,
+    depthWrite: false,
+  });
+  const glassMats = glassMeshes.map((m) => m.material);
+  function renderBehind() {
+    glassMeshes.forEach((m) => (m.material = ghost));
+    renderer.setRenderTarget(behindTarget);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    glassMeshes.forEach((m, i) => (m.material = glassMats[i]));
+  }
 
   const RADIUS = 16;
   const setUniforms = (wall) => ({
@@ -586,6 +625,9 @@ function initGlass(section, canvas, theme) {
     const px = h * renderer.getPixelRatio();
     floorMat.uniforms.uHeight.value = px;
     wallMat.uniforms.uHeight.value = px;
+    const buffer = renderer.getDrawingBufferSize(new THREE.Vector2());
+    behindTarget.setSize(buffer.x, buffer.y);
+    glassShade.uBehindSize.value.copy(buffer);
     camera.aspect = w / h;
     camera.fov = w / h < 1 ? 46 : 34;
     camera.updateProjectionMatrix();
@@ -611,6 +653,7 @@ function initGlass(section, canvas, theme) {
     wallMat.uniforms.uTime.value = t;
     glassShade.uTime.value = t;
     placeCamera(t);
+    renderBehind();
     renderer.render(scene, camera);
   }
   loop();
