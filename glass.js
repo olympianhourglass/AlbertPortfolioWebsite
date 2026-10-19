@@ -238,10 +238,14 @@ function initGlass(section, canvas) {
     return pts;
   })();
 
-  function roundedRect(w, d, r) {
-    const R = Math.min(r * 1.6, w / 2, d / 2);
-    const cx = w / 2 - R;
-    const cy = d / 2 - R;
+  // Every outline in the module shares one corner centre, so bodies, rims, skirts and their
+  // holes are true offsets of each other and bands keep an even width around the corners.
+  const CORNER = MOD.size / 2 - MOD.radius * 1.6;
+
+  function roundedRect(w) {
+    const R = w / 2 - CORNER;
+    const cx = CORNER;
+    const cy = CORNER;
     const centers = [[cx, cy], [-cx, cy], [-cx, -cy], [cx, -cy]];
     const pts = [];
     centers.forEach(([ox, oy], q) => {
@@ -255,17 +259,16 @@ function initGlass(section, canvas) {
     return new THREE.Shape(pts);
   }
 
-  function ringGeometry(outer, band, height, r) {
-    const bevel = Math.min(0.018, height * 0.3);
-    const shape = roundedRect(outer - bevel * 2, outer - bevel * 2, r);
-    const inner = outer - band * 2 + bevel * 2;
-    shape.holes.push(roundedRect(inner, inner, Math.max(0.02, r - band)));
+  function ringGeometry(outer, band, height) {
+    const bevel = Math.min(0.028, height * 0.4, band * 0.3);
+    const shape = roundedRect(outer - bevel * 2);
+    shape.holes.push(roundedRect(outer - band * 2 + bevel * 2));
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: height - bevel * 2,
       bevelEnabled: true,
       bevelThickness: bevel,
       bevelSize: bevel,
-      bevelSegments: 6,
+      bevelSegments: 8,
       curveSegments: 32,
     });
     geo.rotateX(-Math.PI / 2);
@@ -274,8 +277,8 @@ function initGlass(section, canvas) {
   }
 
   // Rounded in plan, near-square in section: a straight extrusion with only a fine edge bevel.
-  function slabGeometry(size, height, r, bevel) {
-    const shape = roundedRect(size - bevel * 2, size - bevel * 2, r - bevel);
+  function slabGeometry(size, height, bevel) {
+    const shape = roundedRect(size - bevel * 2);
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: height - bevel * 2,
       bevelEnabled: true,
@@ -289,11 +292,11 @@ function initGlass(section, canvas) {
     return smooth(geo);
   }
 
-  const bodyGeo = slabGeometry(MOD.size, MOD.height, MOD.radius, 0.025);
+  const bodyGeo = slabGeometry(MOD.size, MOD.height, 0.025);
   const rimOuter = MOD.size - 0.26;
-  const rimGeo = ringGeometry(rimOuter, 0.1, MOD.lip, MOD.radius - 0.13);
+  const rimGeo = ringGeometry(rimOuter, 0.1, MOD.lip);
   rimGeo.translate(0, MOD.height / 2, 0);
-  const skirtGeo = ringGeometry(MOD.size - 0.06, (MOD.size - 0.06 - (rimOuter + 0.03)) / 2, MOD.lip, MOD.radius - 0.03);
+  const skirtGeo = ringGeometry(MOD.size - 0.06, (MOD.size - 0.06 - (rimOuter + 0.03)) / 2, MOD.lip);
   skirtGeo.translate(0, -MOD.height / 2 - MOD.lip, 0);
 
   const normalMap = tileNormalMap();
