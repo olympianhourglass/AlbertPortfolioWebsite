@@ -8,6 +8,7 @@ const viewExperiments = document.getElementById("experiments");
 const EXPERIMENT_IDS = new Set([
   "experiments",
   "showcase-breath",
+  "showcase-hud",
   "showcase",
   "showcase-play",
   "showcase-toys",

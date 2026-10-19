@@ -414,9 +414,37 @@ body {
   );
 }
 
+.showcase-hud {
+  display: block;
+  height: 320vh;
+  min-height: 0;
+  overflow: visible;
+  background: #000;
+  cursor: default;
+}
+
+.hud-stage {
+  position: sticky;
+  top: 64px;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.showcase-hud .showcase-title {
+  color: #fff;
+}
+
+.showcase-hud .showcase-sub {
+  color: rgba(255, 255, 255, 0.55);
+}
+
 .cloud-canvas,
 .cloth-canvas,
-.breath-canvas {
+.breath-canvas,
+.hud-canvas {
   position: absolute;
   inset: 0;
   z-index: 1;
