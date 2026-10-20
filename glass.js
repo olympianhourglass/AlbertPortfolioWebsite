@@ -414,6 +414,16 @@ THEMES["grey-layered"] = {
     [1, 1, 1],
   ],
 };
+// The same set in a black room: the light still pools and glints, it just has nothing to fill.
+THEMES["grey-layered-dark"] = {
+  ...THEMES["grey-layered"],
+  background: "#000000",
+  base: [0.003, 0.003, 0.003],
+  top: [0.006, 0.006, 0.006],
+  ground: "#050505",
+  vignette: 0,
+  caustic: 0.6,
+};
 
 function initGlass(section, canvas, theme) {
   const reduceMotion = window.matchMedia(

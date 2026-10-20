@@ -480,6 +480,18 @@ body {
   background: #e3e3e3;
 }
 
+.showcase-glass-dark {
+  background: #000;
+}
+
+.showcase-glass-dark .showcase-title {
+  color: #f2f2f2;
+}
+
+.showcase-glass-dark .showcase-sub {
+  color: rgba(242, 242, 242, 0.72);
+}
+
 .cloud-canvas,
 .cloth-canvas,
 .hud-canvas,
