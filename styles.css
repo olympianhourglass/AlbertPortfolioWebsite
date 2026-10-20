@@ -400,17 +400,6 @@ body {
   margin: 0 auto;
 }
 
-.showcase-breath {
-  cursor: default;
-  background: linear-gradient(
-    165deg,
-    #fff7f4 0%,
-    #fbe6e2 34%,
-    #f3d0cc 68%,
-    #e8c0c2 100%
-  );
-}
-
 .showcase-hud {
   display: block;
   height: 320vh;
@@ -482,7 +471,6 @@ body {
 
 .cloud-canvas,
 .cloth-canvas,
-.breath-canvas,
 .hud-canvas,
 .glass-canvas {
   position: absolute;
