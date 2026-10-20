@@ -140,6 +140,17 @@ body {
   height: 64px;
 }
 
+.nav.container {
+  max-width: none;
+  padding: 0 40px;
+}
+
+@media (max-width: 640px) {
+  .nav.container {
+    padding: 0 1.5rem;
+  }
+}
+
 .brand {
   font-weight: 500;
   font-size: 1.25rem;
