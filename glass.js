@@ -291,7 +291,7 @@ const setFragment = /* glsl */ `
           if (uBlocks[k].w < 0.5) continue;
           float s = max(uBlocks[k].y - vWorld.y, 0.0) / max(Ln.y, 0.1);
           float sd = roundedSquare(vWorld.xz + Ln.xz * s - uBlocks[k].xz, 0.75, 0.42);
-          float soft = 0.1 + s * 0.12;
+          float soft = max(0.1 + s * 0.12, fwidth(sd));
           float o = 1.0 - smoothstep(-soft, soft, sd);
           filt *= mix(vec3(1.0), uBlockTint[k], o);
           through = max(through, o);
@@ -329,7 +329,7 @@ const setFragment = /* glsl */ `
       if (uUseBlocks > 0.5) col += pulseLight(vWorld, normalize(vec3(-vWorld.x, 0.0, -vWorld.z)), c * warm);
     }
 
-    col += grainAt(gl_FragCoord.xy, uTime) * uGrain;
+    col = max(col + grainAt(gl_FragCoord.xy, uTime) * uGrain, 0.0);
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
@@ -394,6 +394,8 @@ THEMES["grey-layered"] = {
   occl: 0.16,
   seam: 0.2,
   ghostOpacity: 0.62,
+  // Grain reads as noise along the thin rims at this scale; the colour carries the set instead.
+  grain: 0,
   blockHeight: 0.3,
   blockLip: 0.05,
   // How much of each block's shadow becomes coloured light through it (0 = plain grey shadow).
@@ -418,7 +420,7 @@ function initGlass(section, canvas, theme) {
   ).matches;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.toneMapping = THREE.NoToneMapping;
 
   const scene = new THREE.Scene();
@@ -623,6 +625,10 @@ function initGlass(section, canvas, theme) {
     uPulseColor: { value: pulseColor },
     uPulseCalm: pulseCalm,
   };
+  const centroid = (src, stage) =>
+    src
+      .replace(`#include <normal_pars_${stage}>`, THREE.ShaderChunk[`normal_pars_${stage}`])
+      .replace(/varying (vec3 v(?:Normal|ViewPosition|WorldPosition|GlassWorld)|float vGlassLocalY);/g, "centroid varying $1;");
   function shadeGlass(mat) {
     mat.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, glassShade);
@@ -642,9 +648,14 @@ function initGlass(section, canvas, theme) {
       // which also carries the other blocks.
       const behind = THREE.ShaderChunk.transmission_pars_fragment
         .replaceAll("transmissionSamplerMap", "uBehind")
-        .replaceAll("transmissionSamplerSize", "uBehindSize");
+        .replaceAll("transmissionSamplerSize", "uBehindSize")
+        .replace("EnvironmentBRDF( n, v,", "EnvironmentBRDF( pixelFacing( n, v ), v,");
       shader.fragmentShader = shader.fragmentShader
         .replace("#include <transmission_pars_fragment>", behind)
+        .replace(
+          "float dotNVcc = saturate( dot( geometryClearcoatNormal, geometryViewDir ) );",
+          "float dotNVcc = pixelNV( saturate( dot( geometryClearcoatNormal, geometryViewDir ) ) );"
+        )
         .replace(
           "#include <common>",
           `#include <common>
@@ -662,18 +673,45 @@ function initGlass(section, canvas, theme) {
           uniform float uGrain;
           uniform float uTime;
           uniform float uSelf;
+          // On a silhouette thinner than a pixel, N·V sweeps to zero inside one pixel and the
+          // Fresnel term goes to a full mirror, swallowing the refraction: a dark dot on every
+          // stair step. Hold N·V up by its own spread across the pixel.
+          float pixelNV(float nv) {
+            return max(nv, min(fwidth(nv) * 1.5, 0.5));
+          }
+          vec3 pixelFacing(vec3 n, vec3 v) {
+            float nv = dot(n, v);
+            return normalize(n + v * max(pixelNV(nv) - nv, 0.0));
+          }
           ${stackShadow}
           ${grain}
           ${pulseChunk}`
         )
         .replace(
+          "#include <lights_physical_fragment>",
+          `#include <lights_physical_fragment>
+          // Rims and bevels turn faster than a pixel, so their sharp highlights would sparkle
+          // and stair-step. Widen the lobes by the normal's screen-space spread (Tokuyoshi-Kaplanyan).
+          {
+            vec3 dnx = dFdx(nonPerturbedNormal);
+            vec3 dny = dFdy(nonPerturbedNormal);
+            float spread = min(0.5 * (dot(dnx, dnx) + dot(dny, dny)), 0.18);
+            material.roughness = sqrt(sqrt(min(pow4(material.roughness) + spread, 1.0)));
+            #ifdef USE_CLEARCOAT
+              material.clearcoatRoughness = sqrt(sqrt(min(pow4(material.clearcoatRoughness) + spread, 1.0)));
+            #endif
+          }`
+        )
+        .replace(
           "#include <opaque_fragment>",
           `#include <opaque_fragment>
           float seamD = (abs(vGlassLocalY) - uPitch * 0.5) / uLip;
-          float seam = exp(-seamD * seamD);
+          float seamW = max(1.0, fwidth(seamD) * 1.5);
+          float seam = exp(-seamD * seamD / (seamW * seamW)) / seamW;
           float occl = stackShadow(vGlassWorld, normalize(uLight));
-          float facing = abs(dot(normalize(normal), normalize(vViewPosition)));
-          float fres = pow(1.0 - facing, 2.0);
+          float facing = pixelNV(abs(dot(normalize(normal), normalize(vViewPosition))));
+          float fres = 1.0 - min(facing, 1.0);
+          fres *= fres;
           gl_FragColor.rgb *= 1.0 - uEdge * fres;
           gl_FragColor.rgb *= uBody * (1.0 - occl * uOccl) * (1.0 - seam * uSeam);
           gl_FragColor.rgb = max((gl_FragColor.rgb - 0.35) * uContrast + 0.35, 0.0);
@@ -697,8 +735,13 @@ function initGlass(section, canvas, theme) {
             }
           }
           gl_FragColor.rgb += glow;
-          gl_FragColor.rgb += grainAt(gl_FragCoord.xy, uTime) * uGrain;`
+          // Below zero the sRGB encode returns NaN, which lands as black specks along the rims.
+          gl_FragColor.rgb = max(gl_FragColor.rgb + grainAt(gl_FragCoord.xy, uTime) * uGrain, 0.0);`
         );
+      // Under MSAA an edge pixel's centre can sit off the triangle; shade the thin bevels from
+      // inside it rather than from normals extrapolated past the edge.
+      shader.vertexShader = centroid(shader.vertexShader, "vertex");
+      shader.fragmentShader = centroid(shader.fragmentShader, "fragment");
     };
     return mat;
   }
@@ -1081,7 +1124,7 @@ function initGlass(section, canvas, theme) {
   // in front of the set, so the backdrop needs no depth.
   const setScene = new THREE.Scene();
   setScene.add(floor, wall);
-  const setTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  const setTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
   const backdrop = new THREE.Mesh(
     new THREE.PlaneGeometry(2, 2),
     new THREE.ShaderMaterial({
@@ -1204,22 +1247,30 @@ function initGlass(section, canvas, theme) {
   );
   io.observe(section);
 
-  // Resolution follows the machine: step down when frames run long, back up when there's room.
-  const maxDpr = Math.min(window.devicePixelRatio, 1.75);
+  // Resolution follows the machine: step down when frames run long for a while, back up when
+  // there's room. Below 1.5 on a retina screen the rims stair-step, so only real struggle goes there.
+  const maxDpr = Math.min(window.devicePixelRatio, 2);
+  const floorDpr = Math.min(maxDpr, 1.5);
   let dpr = maxDpr;
   let frameMs = 16.7;
   let lastTune = 0;
   let lastDrop = -100;
+  let slow = 0;
   function tune(now, dt) {
     if (dt <= 0 || dt > 0.25) return;
     frameMs += (dt * 1000 - frameMs) * 0.08;
     if (now - lastTune < 1.5) return;
     lastTune = now;
+    slow = frameMs > 22 ? slow + 1 : 0;
     let next = dpr;
-    if (frameMs > 22 && dpr > 1) next = Math.max(1, dpr - 0.25);
+    const low = frameMs > 40 ? 1 : floorDpr;
+    if (slow >= 3 && dpr > low) next = Math.max(low, dpr - 0.25);
     else if (frameMs < 17.5 && dpr < maxDpr && now - lastDrop > 10) next = Math.min(maxDpr, dpr + 0.25);
     if (next === dpr) return;
-    if (next < dpr) lastDrop = now;
+    if (next < dpr) {
+      lastDrop = now;
+      slow = 0;
+    }
     dpr = next;
     renderer.setPixelRatio(dpr);
     resize();
