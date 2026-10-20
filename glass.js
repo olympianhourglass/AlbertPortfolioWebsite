@@ -643,6 +643,7 @@ function initGlass(section, canvas, theme) {
 
   // Real rigid bodies: click a block to punt it; double-click to restack.
   let physics = null;
+  let jolt = 0;
   if (theme.physics) {
     group.updateMatrixWorld(true);
     blocks.forEach((b) => scene.attach(b));
@@ -653,19 +654,42 @@ function initGlass(section, canvas, theme) {
     });
   }
 
-  function createPhysics(CANNON) {
-    const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -9.82, 0), allowSleep: true });
-    world.solver.iterations = 20;
-    world.defaultContactMaterial.friction = 0.45;
-    world.defaultContactMaterial.restitution = 0.12;
+  // Heavy soda-lime glass. One scene unit reads as 10 cm, so a tile is roughly 15 × 15 × 3.5 cm
+  // and about 2 kg. Gravity is tuned by eye a little past 9.8 so falls land hard without rushing.
+  const GLASS_DENSITY = 2500;
+  const UNIT_M = 0.1;
+  const GRAVITY = -14;
+  // speed: how fast a punt sends a tile (units/s); reach/below: how far up and down the stack the
+  // hand connects; drag: per-step speed kept while touching something.
+  const PUNT = { speed: 5.5, lift: 0.18, reach: 0.4, below: 0.1, drag: 0.995 };
+  const FLOOR_MU = 0.6;
+  const GLASS_MU = 0.42;
+  const RESTACK_S = 0.7;
+  const PHYS_DT = 1 / 120;
 
-    const ground = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane() });
+  function createPhysics(CANNON) {
+    const world = new CANNON.World({ gravity: new CANNON.Vec3(0, GRAVITY, 0), allowSleep: true });
+    world.solver.iterations = 20;
+    world.solver.tolerance = 1e-4;
+    const glassMat = new CANNON.Material("glass");
+    const floorMat = new CANNON.Material("floor");
+    const wallMat = new CANNON.Material("wall");
+    // Cannon caps friction per contact point per step (not per second) and by the pair's reduced
+    // mass, so a box face (four points) at 120 Hz grips ~480× its coefficient against the floor
+    // and ~240× against an equal tile. Convert real μ into what the solver expects.
+    const grip = (mu, reducedMass = 1) => (mu * PHYS_DT) / 4 / reducedMass;
+    const stiff = { contactEquationStiffness: 1e7, contactEquationRelaxation: 4, frictionEquationStiffness: 1e7 };
+    world.addContactMaterial(new CANNON.ContactMaterial(glassMat, floorMat, { friction: grip(FLOOR_MU), restitution: 0.12, ...stiff }));
+    world.addContactMaterial(new CANNON.ContactMaterial(glassMat, glassMat, { friction: grip(GLASS_MU, 0.5), restitution: 0.15, ...stiff }));
+    world.addContactMaterial(new CANNON.ContactMaterial(glassMat, wallMat, { friction: grip(0.3), restitution: 0.1, ...stiff }));
+
+    const ground = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Plane(), material: floorMat });
     ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
     world.addBody(ground);
     const fence = 28;
     for (let i = 0; i < fence; i++) {
       const a = (i / fence) * Math.PI * 2;
-      const post = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(2, 6, 0.4)) });
+      const post = new CANNON.Body({ type: CANNON.Body.STATIC, shape: new CANNON.Box(new CANNON.Vec3(2, 6, 0.4)), material: wallMat });
       post.position.set(Math.cos(a) * (RADIUS - 0.6), 6, Math.sin(a) * (RADIUS - 0.6));
       post.quaternion.setFromEuler(0, -a + Math.PI / 2, 0);
       world.addBody(post);
@@ -673,14 +697,16 @@ function initGlass(section, canvas, theme) {
 
     // The collider is the body plus rim; the skirt nests over the block below, as it does visually.
     const shape = new CANNON.Box(new CANNON.Vec3(MOD.size / 2, PITCH / 2, MOD.size / 2));
+    const mass = MOD.size * MOD.size * PITCH * UNIT_M ** 3 * GLASS_DENSITY;
     const rest = blocks.map((b) => b.position.clone());
     const bodies = blocks.map((b) => {
       const body = new CANNON.Body({
-        mass: 1,
-        linearDamping: 0.05,
-        angularDamping: 0.08,
-        sleepSpeedLimit: 0.15,
-        sleepTimeLimit: 0.5,
+        mass,
+        material: glassMat,
+        linearDamping: 0.01,
+        angularDamping: 0.04,
+        sleepSpeedLimit: 0.18,
+        sleepTimeLimit: 0.35,
       });
       body.addShape(shape, new CANNON.Vec3(0, -MOD.lip / 2, 0));
       body.position.set(b.position.x, b.position.y, b.position.z);
@@ -689,30 +715,132 @@ function initGlass(section, canvas, theme) {
       return body;
     });
 
+    // Free in the air, but anything touching scrubs off speed and rocking so it settles flat.
+    const touching = new Set();
+    const onFloor = new Set();
+    const above = new Map();
+    const load = new Map();
+    // Cannon's friction ignores the weight stacked on a tile, so a loaded base would skate out
+    // as easily as a lone one. Brake floor tiles for the tiles resting on them.
+    const loadOf = (b, depth = 0) => {
+      if (load.has(b)) return load.get(b);
+      let n = 1;
+      if (depth < bodies.length) above.get(b)?.forEach((u) => (n += loadOf(u, depth + 1)));
+      load.set(b, n);
+      return n;
+    };
+    world.addEventListener("postStep", () => {
+      touching.clear();
+      onFloor.clear();
+      above.clear();
+      load.clear();
+      world.contacts.forEach((c) => {
+        touching.add(c.bi);
+        touching.add(c.bj);
+        if (c.bi === ground || c.bj === ground) onFloor.add(c.bi === ground ? c.bj : c.bi);
+        else {
+          const [lo, hi] = c.bi.position.y < c.bj.position.y ? [c.bi, c.bj] : [c.bj, c.bi];
+          if (hi.position.y - lo.position.y < PITCH * 0.5) return;
+          if (!above.has(lo)) above.set(lo, new Set());
+          above.get(lo).add(hi);
+        }
+      });
+      bodies.forEach((b) => {
+        if (!touching.has(b) || b.sleepState === CANNON.Body.SLEEPING) return;
+        const slow = b.velocity.lengthSquared() < 0.09;
+        b.angularVelocity.scale(slow ? 0.95 : PUNT.drag, b.angularVelocity);
+        b.velocity.x *= slow ? 0.96 : PUNT.drag;
+        b.velocity.z *= slow ? 0.96 : PUNT.drag;
+        if (!onFloor.has(b)) return;
+        const h = Math.hypot(b.velocity.x, b.velocity.z);
+        const brake = FLOOR_MU * -GRAVITY * (loadOf(b) - 1) * PHYS_DT;
+        if (h <= 0 || brake <= 0) return;
+        const k = Math.max(0, h - brake) / h;
+        b.velocity.x *= k;
+        b.velocity.z *= k;
+      });
+    });
+
+    // A hard landing nudges the camera a hair; quiet contacts do nothing.
+    bodies.forEach((b) => {
+      b.addEventListener("collide", (e) => {
+        const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
+        if (v > 1.2) jolt = Math.max(jolt, Math.min((v - 1.2) * 0.012, 0.035));
+      });
+    });
+
+    let glide = null;
     function kick(i, point, dir) {
+      if (glide) return;
       const body = bodies[i];
       bodies.forEach((b) => b.wakeUp());
       const push = new THREE.Vector3(dir.x, 0, dir.z).normalize();
-      push.y = 0.75;
-      push.normalize().multiplyScalar(12);
-      body.applyImpulse(
-        new CANNON.Vec3(push.x, push.y, push.z),
-        new CANNON.Vec3(point.x - body.position.x, point.y - body.position.y, point.z - body.position.z)
-      );
+      push.y = PUNT.lift;
+      push.normalize().multiplyScalar(PUNT.speed * mass);
+      // Keep the lever height so a high hit tips the block over, but soften the sideways lever
+      // so heavy tiles topple instead of spinning like a coin.
+      const lever = new THREE.Vector3(point.x - body.position.x, point.y - body.position.y, point.z - body.position.z);
+      const along = push.clone().setY(0).normalize();
+      const side = lever.clone().setY(0).sub(along.clone().multiplyScalar(lever.dot(along)));
+      lever.sub(side.multiplyScalar(0.6));
+      // A hand is a few tiles tall: neighbours in the same stack near the hit share the shove,
+      // so the stack above loses its footing and topples.
+      bodies.forEach((b) => {
+        const dy = b.position.y - point.y;
+        const near = Math.hypot(b.position.x - body.position.x, b.position.z - body.position.z) < MOD.size * 0.5;
+        const share = b === body ? 1 : near ? 1 - Math.abs(dy) / (dy > 0 ? PUNT.reach : PUNT.below) : 0;
+        if (share <= 0) return;
+        const arm = b === body ? lever.y : Math.max(-PITCH / 2, Math.min(PITCH / 2, -dy));
+        b.applyImpulse(
+          new CANNON.Vec3(push.x * share, push.y * share, push.z * share),
+          new CANNON.Vec3(lever.x, arm, lever.z)
+        );
+      });
     }
 
+    // Blocks glide home bottom-up instead of snapping, then rest asleep in the stack.
     function restack() {
+      if (glide) return;
+      glide = {
+        t: 0,
+        from: bodies.map((b) => ({
+          p: new THREE.Vector3(b.position.x, b.position.y, b.position.z),
+          q: new THREE.Quaternion(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w),
+        })),
+      };
+    }
+
+    const home = new THREE.Quaternion();
+    const q = new THREE.Quaternion();
+    function stepGlide(dt) {
+      glide.t += dt;
+      let done = true;
+      bodies.forEach((body, i) => {
+        const delay = (rest[i].y / (PITCH * 4)) * 0.25;
+        const u = Math.min(Math.max((glide.t - delay) / RESTACK_S, 0), 1);
+        if (u < 1) done = false;
+        const e = u * u * (3 - 2 * u);
+        const p = glide.from[i].p.clone().lerp(rest[i], e);
+        p.y += Math.sin(e * Math.PI) * 0.35;
+        q.copy(glide.from[i].q).slerp(home, e);
+        body.position.set(p.x, p.y, p.z);
+        body.quaternion.set(q.x, q.y, q.z, q.w);
+      });
+      if (!done) return;
       bodies.forEach((body, i) => {
         body.position.set(rest[i].x, rest[i].y, rest[i].z);
         body.quaternion.set(0, 0, 0, 1);
         body.velocity.setZero();
         body.angularVelocity.setZero();
+        body.aabbNeedsUpdate = true;
         body.sleep();
       });
+      glide = null;
     }
 
     function step(dt) {
-      world.step(1 / 60, dt, 4);
+      if (glide) stepGlide(dt);
+      else world.step(PHYS_DT, dt, 12);
       bodies.forEach((body, i) => {
         blocks[i].position.copy(body.position);
         blocks[i].quaternion.copy(body.quaternion);
@@ -914,6 +1042,7 @@ function initGlass(section, canvas, theme) {
       target.z + Math.sin(a) * r
     );
     camera.lookAt(target);
+    if (jolt > 0.001 && !reduceMotion) camera.position.y -= jolt * Math.cos(t * 90);
   }
 
   function resize() {
@@ -976,6 +1105,7 @@ function initGlass(section, canvas, theme) {
     if (!running) return;
     const now = clock.getElapsedTime();
     physics?.step(Math.min(now - last, 0.1));
+    jolt *= Math.exp(-(now - last) * 16);
     tune(now, now - last);
     last = now;
     const t = reduceMotion ? 4 : now;
