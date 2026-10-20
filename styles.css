@@ -471,7 +471,8 @@ body {
 }
 
 .showcase-glass .showcase-sub {
-  color: rgba(43, 51, 48, 0.62);
+  font-weight: 300;
+  color: rgba(43, 51, 48, 0.74);
   margin: 0;
 }
 
