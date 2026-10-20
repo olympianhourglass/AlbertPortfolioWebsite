@@ -123,6 +123,24 @@ const stackShadow = /* glsl */ `
   }
 `;
 
+// Light pulses from clicked tiles: xyz follows the tile, w is age in seconds (< 0 is idle);
+// colour is the tile's filter times strength, alpha the source block's index.
+const pulseChunk = /* glsl */ `
+  uniform vec4 uPulse[4];
+  uniform vec4 uPulseColor[4];
+  uniform float uPulseCalm;
+
+  float pulseEnv(float a) {
+    return (1.0 - exp(-a * 30.0)) * exp(-a * mix(3.6, 6.0, uPulseCalm));
+  }
+
+  // A soft ring of light rolling outward across the set.
+  float pulseWave(float a, float r) {
+    float x = (r - a * 5.5) / (0.35 + a * 1.4);
+    return exp(-x * x) * (1.0 - exp(-a * 30.0)) * exp(-a * 2.4) * (1.0 - uPulseCalm);
+  }
+`;
+
 // Zero-mean film grain, re-seeded every frame so it shimmers instead of sitting on the glass.
 const grain = /* glsl */ `
   float grainAt(vec2 px, float time) {
@@ -153,6 +171,46 @@ const setFragment = /* glsl */ `
   varying vec3 vWorld;
   ${stackShadow}
   ${grain}
+  ${pulseChunk}
+
+  // How much of the segment from p to the pulse runs through a block (0 = clear).
+  float segOcc(vec3 p, vec3 inv, vec3 lo, vec3 hi, float len) {
+    vec3 t1 = (lo - p) * inv;
+    vec3 t2 = (hi - p) * inv;
+    vec3 tn = min(t1, t2);
+    vec3 tf = max(t1, t2);
+    float enter = max(max(tn.x, tn.y), max(tn.z, 0.0));
+    float leave = min(min(min(tf.x, tf.y), tf.z), len);
+    return smoothstep(0.0, 0.5, leave - enter);
+  }
+
+  // Each pulse is a point light riding its tile plus a rolling wave. Other tiles stand in the
+  // way as tinted glass, and the caustics already on the set flare in the pulse colour.
+  vec3 pulseLight(vec3 p, vec3 n, vec3 caus) {
+    vec3 sum = vec3(0.0);
+    vec3 ext = vec3(0.75, uBlockHalf, 0.75);
+    for (int i = 0; i < 4; i++) {
+      float a = uPulse[i].w;
+      if (a < 0.0) continue;
+      vec3 d = uPulse[i].xyz - p;
+      float len = length(d);
+      vec3 dir = d / max(len, 1e-3);
+      // The whole tile glows, not a point at its centre, so wrap the falloff like an area light.
+      float I = pulseEnv(a) * 2.6 * max(dot(n, dir) * 0.65 + 0.35, 0.0) / (1.0 + len * len * 0.7);
+      I += pulseWave(a, length(d.xz)) * 0.7 / (1.0 + len * 0.3);
+      if (I < 0.002) continue;
+      vec3 vis = vec3(1.0);
+      vec3 inv = 1.0 / dir;
+      int src = int(uPulseColor[i].a + 0.5);
+      for (int k = 0; k < 16; k++) {
+        if (k == src || uBlocks[k].w < 0.5) continue;
+        float o = segOcc(p, inv, uBlocks[k].xyz - ext, uBlocks[k].xyz + ext, len);
+        vis *= mix(vec3(1.0), uBlockTint[k] * 0.3, o);
+      }
+      sum += uPulseColor[i].rgb * vis * I * (uBase * 0.9 + caus * 1.6);
+    }
+    return sum;
+  }
 
   #define TAU 6.28318530718
 
@@ -251,6 +309,7 @@ const setFragment = /* glsl */ `
       } else {
         col *= 1.0 - stackShadow(vWorld, normalize(uLight)) * uShadow;
       }
+      if (uUseBlocks > 0.5) col += pulseLight(vWorld, vec3(0.0, 1.0, 0.0), c * warm);
       col *= mix(1.0, 0.97 - uVignette, smoothstep(5.0, uRadius, length(vWorld.xz)));
     } else {
       float ang = atan(vWorld.z, vWorld.x);
@@ -267,6 +326,7 @@ const setFragment = /* glsl */ `
       col = mix(uBase, uTop, smoothstep(0.0, 12.0, y));
       col *= mix(0.97 - uVignette, 1.0 - uVignette * 0.5, smoothstep(0.0, 2.5, y));
       col += (c * warm * (through * 0.7 + bounced * 0.5) + warm * (through + bounced) * 0.03) * lift;
+      if (uUseBlocks > 0.5) col += pulseLight(vWorld, normalize(vec3(-vWorld.x, 0.0, -vWorld.z)), c * warm);
     }
 
     col += grainAt(gl_FragCoord.xy, uTime) * uGrain;
@@ -528,6 +588,19 @@ function initGlass(section, canvas, theme) {
     return v.lerp(new THREE.Vector3(1, 1, 1), 0.25);
   }
 
+  // Up to four pulses live at once, so rapid clicks layer; the oldest slot is reused.
+  const pulsePos = Array.from({ length: 4 }, () => new THREE.Vector4(0, 0, 0, -1));
+  const pulseColor = Array.from({ length: 4 }, () => new THREE.Vector4(0, 0, 0, -1));
+  const pulseCalm = { value: reduceMotion ? 1 : 0 };
+  const pulses = [];
+  const PULSE_LIFE = 2;
+  // Mirrors pulseEnv in the shaders, for the ghost glow in the behind pass.
+  const pulseEnv = (a) => (1 - Math.exp(-a * 30)) * Math.exp(-a * (reduceMotion ? 6 : 3.6));
+  function emitPulse(i) {
+    if (pulses.length >= pulsePos.length) pulses.shift();
+    pulses.push({ i, t0: performance.now() / 1000 });
+  }
+
   // Stacks shade one another, each seam gets a contact line, and the glass carries a little black.
   const glassShade = {
     uBlocks: { value: blockUniform },
@@ -546,10 +619,14 @@ function initGlass(section, canvas, theme) {
     uPitch: { value: PITCH },
     uLip: { value: MOD.lip },
     uBlockHalf: { value: MOD.height / 2 + MOD.lip },
+    uPulse: { value: pulsePos },
+    uPulseColor: { value: pulseColor },
+    uPulseCalm: pulseCalm,
   };
   function shadeGlass(mat) {
     mat.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, glassShade);
+      shader.uniforms.uSelf = { value: mat.userData.self ?? -1 };
       const look = mat.userData.look;
       shader.uniforms.transmission.value = 1;
       shader.uniforms.thickness.value = look.thickness;
@@ -584,8 +661,10 @@ function initGlass(section, canvas, theme) {
           uniform float uSeam;
           uniform float uGrain;
           uniform float uTime;
+          uniform float uSelf;
           ${stackShadow}
-          ${grain}`
+          ${grain}
+          ${pulseChunk}`
         )
         .replace(
           "#include <opaque_fragment>",
@@ -598,6 +677,26 @@ function initGlass(section, canvas, theme) {
           gl_FragColor.rgb *= 1.0 - uEdge * fres;
           gl_FragColor.rgb *= uBody * (1.0 - occl * uOccl) * (1.0 - seam * uSeam);
           gl_FragColor.rgb = max((gl_FragColor.rgb - 0.35) * uContrast + 0.35, 0.0);
+          // A clicked tile glows from inside: light trapped in thick glass leaks out strongest at
+          // grazing edges and along the rims. Neighbours catch it on the faces turned toward it.
+          vec3 nV = normalize(normal);
+          vec3 glow = vec3(0.0);
+          for (int i = 0; i < 4; i++) {
+            float a = uPulse[i].w;
+            if (a < 0.0) continue;
+            vec3 pc = uPulseColor[i].rgb;
+            if (abs(uPulseColor[i].a - uSelf) < 0.5) {
+              float e = pulseEnv(a);
+              gl_FragColor.rgb *= 1.0 + (pc - 0.5) * e * 0.7;
+              glow += pc * e * (0.08 + 0.85 * fres + 0.4 * seam);
+            } else {
+              vec3 d = uPulse[i].xyz - vGlassWorld;
+              float wrap = dot(nV, normalize((viewMatrix * vec4(d, 0.0)).xyz)) * 0.5 + 0.5;
+              float I = pulseEnv(a) / (1.0 + dot(d, d) * 0.7) + pulseWave(a, length(d.xz)) * 0.2;
+              glow += pc * I * wrap * (0.25 + 0.9 * fres);
+            }
+          }
+          gl_FragColor.rgb += glow;
           gl_FragColor.rgb += grainAt(gl_FragCoord.xy, uTime) * uGrain;`
         );
     };
@@ -616,6 +715,7 @@ function initGlass(section, canvas, theme) {
       const layer = col.layers?.[i];
       if (layer && k < blockTint.length) blockTint[k].copy(filterFor(layer));
       const mat = shadeGlass(ownTransmission(glassFor(k++ * 5 + 1, layer)));
+      mat.userData.self = blocks.length;
       const block = new THREE.Group();
       const parts = [new THREE.Mesh(blockGeo, mat)];
       glassMeshes.push(...parts);
@@ -866,7 +966,9 @@ function initGlass(section, canvas, theme) {
     canvas.addEventListener("pointerdown", (e) => {
       const hit = hitAt(e);
       if (!hit || !physics) return;
-      physics.kick(blocks.indexOf(hit.object.parent), hit.point, ray.ray.direction);
+      const i = blocks.indexOf(hit.object.parent);
+      physics.kick(i, hit.point, ray.ray.direction);
+      emitPulse(i);
     });
     canvas.addEventListener("dblclick", () => physics?.restack());
   }
@@ -896,8 +998,28 @@ function initGlass(section, canvas, theme) {
     }
     return ghosts.get(color);
   };
-  const ghostMats = ghostColors.map(ghostFor);
+  // Loose tiles get their own ghost so a glowing one also shines through the tiles in front.
+  const ghostMats = ghostColors.map((c) => (theme.physics ? ghostFor(c).clone() : ghostFor(c)));
   const glassMats = glassMeshes.map((m) => m.material);
+  function syncPulses() {
+    const now = performance.now() / 1000;
+    while (pulses.length && now - pulses[0].t0 > PULSE_LIFE) pulses.shift();
+    ghostMats.forEach((g) => g.emissive.setRGB(0, 0, 0));
+    const strength = reduceMotion ? 0.6 : 1;
+    pulsePos.forEach((p, s) => {
+      const pulse = pulses[s];
+      if (!pulse) return p.setW(-1);
+      const age = now - pulse.t0;
+      const tint = blockTint[pulse.i];
+      p.copy(blocks[pulse.i].position).setW(age);
+      // Squared so the light carries the tile's hue on a bright set instead of washing to pink-white.
+      pulseColor[s].set(tint.x ** 2 * strength, tint.y ** 2 * strength, tint.z ** 2 * strength, pulse.i);
+      const e = pulseEnv(age) * 0.8;
+      const c = pulseColor[s];
+      const g = ghostMats[pulse.i].emissive;
+      g.setRGB(g.r + c.x * e, g.g + c.y * e, g.b + c.z * e);
+    });
+  }
   function renderBehind() {
     glassMeshes.forEach((m, i) => (m.material = ghostMats[i]));
     renderer.setRenderTarget(behindTarget);
@@ -928,6 +1050,9 @@ function initGlass(section, canvas, theme) {
     uBlockHalf: { value: MOD.height / 2 + MOD.lip },
     uBlockTint: { value: blockTint },
     uTinted: { value: theme.tintedCaustics ?? 0 },
+    uPulse: { value: pulsePos },
+    uPulseColor: { value: pulseColor },
+    uPulseCalm: pulseCalm,
   });
   const floorMat = new THREE.ShaderMaterial({
     uniforms: setUniforms(0),
@@ -1105,6 +1230,7 @@ function initGlass(section, canvas, theme) {
     if (!running) return;
     const now = clock.getElapsedTime();
     physics?.step(Math.min(now - last, 0.1));
+    if (theme.physics) syncPulses();
     jolt *= Math.exp(-(now - last) * 16);
     tune(now, now - last);
     last = now;
