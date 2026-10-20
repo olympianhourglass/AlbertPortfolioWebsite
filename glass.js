@@ -1,6 +1,7 @@
 // Glass tiles — stacked rounded blocks on a cream set, caustics thrown on the floor and wall.
 
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 // Caps stay dead flat; only the walls and bevels share normals, so the plan corner shades as one curve.
 function smooth(geo) {
   geo.deleteAttribute("uv");
@@ -414,6 +415,8 @@ function initGlass(section, canvas, theme) {
   rimGeo.translate(0, MOD.height / 2, 0);
   const skirtGeo = ringGeometry(MOD.size - 0.06, (MOD.size - 0.06 - (rimOuter + 0.03)) / 2, MOD.lip);
   skirtGeo.translate(0, -MOD.height / 2 - MOD.lip, 0);
+  // One draw per block instead of three.
+  const blockGeo = mergeGeometries([bodyGeo, rimGeo, skirtGeo], false);
 
   const normalMap = tileNormalMap();
   const tints = [
@@ -448,6 +451,20 @@ function initGlass(section, canvas, theme) {
     });
   }
 
+  // The glass refracts our own behind pass, so three's transmission pass (a full-screen copy,
+  // resolve and mip chain every frame) is pure overhead. Keep the transmission shader code via
+  // the define, report zero transmission to the renderer, and feed the uniforms ourselves.
+  function ownTransmission(mat) {
+    mat.userData.look = {
+      thickness: mat.thickness,
+      dist: mat.attenuationDistance,
+      tint: mat.attenuationColor.clone(),
+    };
+    mat.transmission = 0;
+    mat.defines = { ...mat.defines, USE_TRANSMISSION: "" };
+    return mat;
+  }
+
   const blockUniform = Array.from({ length: 16 }, () => new THREE.Vector4());
   const useBlocks = { value: theme.physics ? 1 : 0 };
 
@@ -472,6 +489,11 @@ function initGlass(section, canvas, theme) {
   function shadeGlass(mat) {
     mat.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, glassShade);
+      const look = mat.userData.look;
+      shader.uniforms.transmission.value = 1;
+      shader.uniforms.thickness.value = look.thickness;
+      shader.uniforms.attenuationDistance.value = look.dist;
+      shader.uniforms.attenuationColor.value.copy(look.tint);
       shader.vertexShader = shader.vertexShader
         .replace("#include <common>", "#include <common>\nvarying vec3 vGlassWorld;\nvarying float vGlassLocalY;")
         .replace(
@@ -531,9 +553,9 @@ function initGlass(section, canvas, theme) {
   columns.forEach((col) => {
     for (let i = 0; i < col.count; i++) {
       const layer = col.layers?.[i];
-      const mat = shadeGlass(glassFor(k++ * 5 + 1, layer));
+      const mat = shadeGlass(ownTransmission(glassFor(k++ * 5 + 1, layer)));
       const block = new THREE.Group();
-      const parts = [bodyGeo, rimGeo, skirtGeo].map((g) => new THREE.Mesh(g, mat));
+      const parts = [new THREE.Mesh(blockGeo, mat)];
       glassMeshes.push(...parts);
       parts.forEach(() => ghostColors.push(layer?.ghost || theme.ghost));
       block.add(...parts);
@@ -726,15 +748,48 @@ function initGlass(section, canvas, theme) {
     side: THREE.BackSide,
   });
 
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(RADIUS, 96), floorMat);
+  // The floor runs a little past the wall so their polygon edges never leave a gap at the horizon.
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(RADIUS + 1, 128), floorMat);
   floor.rotation.x = -Math.PI / 2;
-  scene.add(floor);
   const wall = new THREE.Mesh(
     new THREE.CylinderGeometry(RADIUS, RADIUS, 30, 128, 1, true),
     wallMat
   );
   wall.position.y = 15;
-  scene.add(wall);
+
+  // The caustic set is the expensive shader, so it's drawn once per frame into a texture and
+  // laid behind everything as a flat backdrop. The screen, the behind pass and three's own
+  // transmission pass all reuse it instead of re-running the caustics. The blocks always sit
+  // in front of the set, so the backdrop needs no depth.
+  const setScene = new THREE.Scene();
+  setScene.add(floor, wall);
+  const setTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
+  const backdrop = new THREE.Mesh(
+    new THREE.PlaneGeometry(2, 2),
+    new THREE.ShaderMaterial({
+      uniforms: { uSet: { value: setTarget.texture } },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position.xy, 1.0, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform sampler2D uSet;
+        varying vec2 vUv;
+        void main() {
+          gl_FragColor = texture2D(uSet, vUv);
+          #include <colorspace_fragment>
+        }
+      `,
+      depthTest: false,
+      depthWrite: false,
+    })
+  );
+  backdrop.frustumCulled = false;
+  backdrop.renderOrder = -1;
+  scene.add(backdrop);
 
   const envScene = new THREE.Scene();
   envScene.add(floor.clone(), wall.clone());
@@ -804,6 +859,7 @@ function initGlass(section, canvas, theme) {
     wallMat.uniforms.uHeight.value = px;
     const buffer = renderer.getDrawingBufferSize(new THREE.Vector2());
     behindTarget.setSize(buffer.x, buffer.y);
+    setTarget.setSize(buffer.x, buffer.y);
     glassShade.uBehindSize.value.copy(buffer);
     camera.aspect = w / h;
     camera.fov = w / h < 1 ? 46 : 34;
@@ -815,26 +871,55 @@ function initGlass(section, canvas, theme) {
   const clock = new THREE.Clock();
   let last = 0;
   let running = true;
+  // Neighbouring sections peek in as thin strips; rendering a whole frame for a sliver is the
+  // single biggest cost on this page, so a section only runs once a real part of it is in view.
   const io = new IntersectionObserver(
     (entries) => {
-      running = entries[0]?.isIntersecting ?? true;
+      const e = entries[0];
+      const seen = e ? e.intersectionRect.height / Math.max(1, Math.min(e.rootBounds?.height || 1, e.boundingClientRect.height)) : 1;
+      running = !!e?.isIntersecting && seen > 0.18;
     },
-    { threshold: 0 }
+    { threshold: [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.5, 1] }
   );
   io.observe(section);
+
+  // Resolution follows the machine: step down when frames run long, back up when there's room.
+  const maxDpr = Math.min(window.devicePixelRatio, 1.75);
+  let dpr = maxDpr;
+  let frameMs = 16.7;
+  let lastTune = 0;
+  let lastDrop = -100;
+  function tune(now, dt) {
+    if (dt <= 0 || dt > 0.25) return;
+    frameMs += (dt * 1000 - frameMs) * 0.08;
+    if (now - lastTune < 1.5) return;
+    lastTune = now;
+    let next = dpr;
+    if (frameMs > 22 && dpr > 1) next = Math.max(1, dpr - 0.25);
+    else if (frameMs < 17.5 && dpr < maxDpr && now - lastDrop > 10) next = Math.min(maxDpr, dpr + 0.25);
+    if (next === dpr) return;
+    if (next < dpr) lastDrop = now;
+    dpr = next;
+    renderer.setPixelRatio(dpr);
+    resize();
+  }
 
   function loop() {
     requestAnimationFrame(loop);
     if (!running) return;
     const now = clock.getElapsedTime();
     physics?.step(Math.min(now - last, 0.1));
+    tune(now, now - last);
     last = now;
     const t = reduceMotion ? 4 : now;
     floorMat.uniforms.uTime.value = t;
     wallMat.uniforms.uTime.value = t;
     glassShade.uTime.value = t;
     placeCamera(t);
+    renderer.setRenderTarget(setTarget);
+    renderer.render(setScene, camera);
     renderBehind();
+    renderer.setRenderTarget(null);
     renderer.render(scene, camera);
   }
   loop();
