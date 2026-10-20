@@ -176,6 +176,12 @@ const setFragment = /* glsl */ `
     return vec3(caustic(uv + s, t), caustic(uv, t), caustic(uv - s, t));
   }
 
+  // Signed distance to a rounded square of half-size h and corner radius r.
+  float roundedSquare(vec2 p, float h, float r) {
+    vec2 d = abs(p) - (h - r);
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - r;
+  }
+
   void main() {
     vec3 warm = uWarm;
     vec3 col = uBase;
@@ -214,24 +220,34 @@ const setFragment = /* glsl */ `
       vec3 c = causticRGB(vWorld.xz * 0.34, t);
       col += (c * pool * warm * 1.1 + pool * 0.06 * warm) * lift;
       if (uTinted > 0.0 && uUseBlocks > 0.5) {
-        // Sunlight crossing each block picks up its colour (stacked blocks multiply) and
-        // focuses into a tighter, brighter caustic where the path through the glass is longest.
+        // Each block casts its rounded footprint along the sun, feathering wider the further the
+        // light travels. Light crossing it picks up the block's colour (stacked blocks multiply)
+        // and focuses into a soft caustic pool that fades with distance; right under a block
+        // resting on the floor no light gets through, so the contact stays dark.
         vec3 Ln = normalize(uLight);
-        vec3 inv = 1.0 / Ln;
-        vec3 ext = vec3(0.75, uBlockHalf, 0.75);
         vec3 filt = vec3(1.0);
         float through = 0.0;
+        float focus = 0.0;
+        float contact = 0.0;
         for (int k = 0; k < 16; k++) {
           if (uBlocks[k].w < 0.5) continue;
-          float o = boxOcc(vWorld, inv, uBlocks[k].xyz - ext, uBlocks[k].xyz + ext);
+          float s = max(uBlocks[k].y - vWorld.y, 0.0) / max(Ln.y, 0.1);
+          float sd = roundedSquare(vWorld.xz + Ln.xz * s - uBlocks[k].xz, 0.75, 0.42);
+          float soft = 0.1 + s * 0.12;
+          float o = 1.0 - smoothstep(-soft, soft, sd);
           filt *= mix(vec3(1.0), uBlockTint[k], o);
           through = max(through, o);
+          focus = max(focus, (1.0 - smoothstep(-0.6, 0.0, sd)) * exp(-s * 0.35));
+          float rest = 1.0 - smoothstep(0.0, 0.3, uBlocks[k].y - uBlockHalf);
+          float under = roundedSquare(vWorld.xz - uBlocks[k].xz, 0.75, 0.42);
+          contact = max(contact, rest * (1.0 - smoothstep(-0.4, 0.12, under)));
         }
         col *= mix(vec3(1.0 - through * uShadow), filt * (1.0 - through * uShadow * 0.4), uTinted);
-        if (through > 0.001) {
+        if (focus * (1.0 - contact) > 0.001) {
           vec3 fc = causticRGB(vWorld.xz * 0.62 + 3.1, t * 1.25);
-          col += (fc * 0.9 + 0.05) * filt * warm * through * uTinted * lift;
+          col += (fc * 0.8 + 0.04) * filt * warm * focus * (1.0 - contact) * uTinted * lift;
         }
+        col *= 1.0 - contact * 0.5;
       } else {
         col *= 1.0 - stackShadow(vWorld, normalize(uLight)) * uShadow;
       }
