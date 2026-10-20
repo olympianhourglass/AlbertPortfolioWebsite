@@ -430,6 +430,7 @@ THEMES["grey-layered-black"] = {
   top: [0, 0, 0],
   ground: "#000000",
   caustic: 0,
+  frost: 0.2,
 };
 
 function initGlass(section, canvas, theme) {
@@ -559,10 +560,12 @@ function initGlass(section, canvas, theme) {
 
   function glassFor(k, layer) {
     const t = layer ? { ...tints[k % tints.length], ...layer } : tints[k % tints.length];
+    // Frost is a fraction of the way from the tile's own finish to fully matte.
+    const frost = theme.frost ?? 0;
     return new THREE.MeshPhysicalMaterial({
       color: t.color || "#ffffff",
       metalness: 0,
-      roughness: t.rough,
+      roughness: t.rough + (1 - t.rough) * frost,
       transmission: 1,
       thickness: 1.0,
       ior: t.ior,
@@ -573,7 +576,7 @@ function initGlass(section, canvas, theme) {
       iridescence: theme.studio ? 0.35 : 0,
       iridescenceIOR: 1.3,
       iridescenceThicknessRange: [220, 480],
-      clearcoatRoughness: 0.02,
+      clearcoatRoughness: 0.02 + 0.98 * frost * 0.6,
       normalMap,
       normalScale: new THREE.Vector2(0.28, 0.28),
       envMapIntensity: theme.env,
