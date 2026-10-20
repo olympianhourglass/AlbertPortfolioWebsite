@@ -465,6 +465,9 @@ body {
 .showcase-glass .showcase-title {
   color: #2b3330;
   font-weight: 400;
+  font-size: clamp(2.25rem, 7vw, 3.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 
 .showcase-glass .showcase-sub {
