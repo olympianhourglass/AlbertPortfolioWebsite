@@ -875,7 +875,8 @@ function initGlass(section, canvas, theme) {
   const GRAVITY = -14;
   // speed: how fast a punt sends a tile (units/s); reach/below: how far up and down the stack the
   // hand connects; drag: per-step speed kept while touching something.
-  const PUNT = { speed: 5.5, lift: 0.18, reach: 0.4, below: 0.1, drag: 0.995 };
+  // hop: the upward pop (units/s) that lifts a keyed tile off the rim beneath before the shove.
+  const PUNT = { speed: 5.5, lift: 0.18, hop: 1.6, reach: 0.4, below: 0.1, drag: 0.995 };
   const FLOOR_MU = 0.6;
   const GLASS_MU = 0.42;
   const RESTACK_S = 0.7;
@@ -909,8 +910,34 @@ function initGlass(section, canvas, theme) {
       world.addBody(post);
     }
 
-    // The collider is the body plus rim; the skirt nests over the block below, as it does visually.
-    const shape = new CANNON.Box(new CANNON.Vec3(MOD.size / 2, PITCH / 2, MOD.size / 2));
+    // The collider follows the visual module: body, rim on top, skirt below. The skirt is a solid
+    // slab to everything but rims, and a four-sided ring to rims, so a rim can only ever sit inside
+    // the skirt's hole — tiles key together in a stack and never pass through each other tumbled.
+    const SHAPE = { body: 1, rim: 2, slab: 4, ring: 8 };
+    const skirtOuter = MOD.size - 0.06;
+    const skirtBand = (skirtOuter - (rimOuter + 0.03)) / 2;
+    const skirtY = -MOD.height / 2 - MOD.lip / 2;
+    // A hair short of the block above, so a keyed stack rests on its skirts alone, as it does now.
+    const rimTop = MOD.height / 2 + MOD.lip - 0.004;
+    const colliderParts = () => {
+      const box = (x, y, z, group, mask, at) => {
+        const s = new CANNON.Box(new CANNON.Vec3(x, y, z));
+        s.collisionFilterGroup = group;
+        s.collisionFilterMask = mask;
+        return [s, at];
+      };
+      const ringSide = (skirtOuter - skirtBand) / 2;
+      return [
+        box(MOD.size / 2, MOD.height / 2, MOD.size / 2, SHAPE.body, -1, new CANNON.Vec3()),
+        box(rimOuter / 2, (rimTop - MOD.height / 2 + MOD.lip) / 2, rimOuter / 2, SHAPE.rim, ~SHAPE.slab,
+          new CANNON.Vec3(0, (rimTop + MOD.height / 2 - MOD.lip) / 2, 0)),
+        box(skirtOuter / 2, MOD.lip / 2, skirtOuter / 2, SHAPE.slab, ~(SHAPE.rim | SHAPE.ring), new CANNON.Vec3(0, skirtY, 0)),
+        ...[-1, 1].flatMap((s) => [
+          box(skirtOuter / 2, MOD.lip / 2, skirtBand / 2, SHAPE.ring, SHAPE.rim, new CANNON.Vec3(0, skirtY, s * ringSide)),
+          box(skirtBand / 2, MOD.lip / 2, skirtOuter / 2 - skirtBand, SHAPE.ring, SHAPE.rim, new CANNON.Vec3(s * ringSide, skirtY, 0)),
+        ]),
+      ];
+    };
     const mass = MOD.size * MOD.size * PITCH * UNIT_M ** 3 * GLASS_DENSITY;
     const rest = blocks.map((b) => b.position.clone());
     const bodies = blocks.map((b) => {
@@ -922,7 +949,7 @@ function initGlass(section, canvas, theme) {
         sleepSpeedLimit: 0.18,
         sleepTimeLimit: 0.35,
       });
-      body.addShape(shape, new CANNON.Vec3(0, -MOD.lip / 2, 0));
+      colliderParts().forEach(([s, at]) => body.addShape(s, at));
       body.position.set(b.position.x, b.position.y, b.position.z);
       world.addBody(body);
       body.sleep();
@@ -986,6 +1013,7 @@ function initGlass(section, canvas, theme) {
     let glide = null;
     function kick(i, point, dir) {
       if (glide) return;
+      if (pending) shove();
       const body = bodies[i];
       bodies.forEach((b) => b.wakeUp());
       const push = new THREE.Vector3(dir.x, 0, dir.z).normalize();
@@ -999,22 +1027,47 @@ function initGlass(section, canvas, theme) {
       lever.sub(side.multiplyScalar(0.6));
       // A hand is a few tiles tall: neighbours in the same stack near the hit share the shove,
       // so the stack above loses its footing and topples.
+      const near = (b) => Math.hypot(b.position.x - body.position.x, b.position.z - body.position.z) < MOD.size * 0.5;
+      const shoves = [];
       bodies.forEach((b) => {
         const dy = b.position.y - point.y;
-        const near = Math.hypot(b.position.x - body.position.x, b.position.z - body.position.z) < MOD.size * 0.5;
-        const share = b === body ? 1 : near ? 1 - Math.abs(dy) / (dy > 0 ? PUNT.reach : PUNT.below) : 0;
+        const share = b === body ? 1 : near(b) ? 1 - Math.abs(dy) / (dy > 0 ? PUNT.reach : PUNT.below) : 0;
         if (share <= 0) return;
         const arm = b === body ? lever.y : Math.max(-PITCH / 2, Math.min(PITCH / 2, -dy));
-        b.applyImpulse(
-          new CANNON.Vec3(push.x * share, push.y * share, push.z * share),
-          new CANNON.Vec3(lever.x, arm, lever.z)
-        );
+        shoves.push([b, new CANNON.Vec3(push.x * share, push.y * share, push.z * share), new CANNON.Vec3(lever.x, arm, lever.z)]);
       });
+      // Keyed tiles can't slide out sideways: the skirt would cut through the rim beneath. The hand
+      // first pops the tile clear of the rim below, and the stack above clear of its rim, then shoves.
+      const keyedBelow = bodies.some((b) => b !== body && near(b) && body.position.y - b.position.y > 0 && body.position.y - b.position.y < PITCH * 1.3);
+      const stackAbove = bodies.filter((b) => b !== body && near(b) && b.position.y > body.position.y);
+      if (!keyedBelow && !stackAbove.length) return shoves.forEach(([b, j, at]) => b.applyImpulse(j, at));
+      const hop = keyedBelow ? PUNT.hop : 0;
+      body.velocity.y += hop;
+      stackAbove.forEach((b) => (b.velocity.y += hop + PUNT.hop));
+      const y0 = body.position.y;
+      const above = stackAbove.reduce((lo, b) => (!lo || b.position.y < lo.position.y ? b : lo), null);
+      const gap = above ? above.position.y - y0 : 0;
+      const clearance = MOD.lip + 0.01;
+      pending = {
+        until: world.time + 0.15,
+        ready: () =>
+          (!keyedBelow || body.position.y - y0 > clearance) && (!above || above.position.y - body.position.y - gap > clearance),
+        shoves,
+      };
     }
+    let pending = null;
+    function shove() {
+      pending.shoves.forEach(([b, j, at]) => b.applyImpulse(j, at));
+      pending = null;
+    }
+    world.addEventListener("postStep", () => {
+      if (pending && (pending.ready() || world.time >= pending.until)) shove();
+    });
 
     // Blocks glide home bottom-up instead of snapping, then rest asleep in the stack.
     function restack() {
       if (glide) return;
+      pending = null;
       glide = {
         t: 0,
         from: bodies.map((b) => ({
