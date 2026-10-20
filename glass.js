@@ -90,6 +90,7 @@ const setVertex = /* glsl */ `
 const stackShadow = /* glsl */ `
   uniform vec4 uBlocks[16];
   uniform float uUseBlocks;
+  uniform float uBlockHalf;
 
   float boxOcc(vec3 p, vec3 inv, vec3 lo, vec3 hi) {
     if (all(greaterThan(p, lo - 0.03)) && all(lessThan(p, hi + 0.03))) return 0.0;
@@ -106,7 +107,7 @@ const stackShadow = /* glsl */ `
     float occ = 0.0;
     vec3 inv = 1.0 / L;
     if (uUseBlocks > 0.5) {
-      vec3 ext = vec3(0.75, 0.37, 0.75);
+      vec3 ext = vec3(0.75, uBlockHalf, 0.75);
       for (int k = 0; k < 16; k++) {
         if (uBlocks[k].w < 0.5) continue;
         occ = max(occ, boxOcc(p, inv, uBlocks[k].xyz - ext, uBlocks[k].xyz + ext));
@@ -147,6 +148,8 @@ const setFragment = /* glsl */ `
   uniform float uAO;
   uniform float uVignette;
   uniform float uGrain;
+  uniform vec3 uBlockTint[16];
+  uniform float uTinted;
   varying vec3 vWorld;
   ${stackShadow}
   ${grain}
@@ -200,7 +203,7 @@ const setFragment = /* glsl */ `
         for (int k = 0; k < 16; k++) {
           if (uBlocks[k].w < 0.5) continue;
           vec2 d = vWorld.xz - uBlocks[k].xz;
-          float near = exp(-max(uBlocks[k].y - 0.37, 0.0) * 1.5);
+          float near = exp(-max(uBlocks[k].y - uBlockHalf, 0.0) * 1.5);
           ao += exp(-dot(d, d) * 1.4) * 0.45 * near;
           pool += exp(-dot(d + L2 * 0.9, d + L2 * 0.9) * 0.9) * 0.5 * near;
         }
@@ -210,7 +213,28 @@ const setFragment = /* glsl */ `
       col *= 1.0 - clamp(ao, 0.0, 1.0) * uAO;
       vec3 c = causticRGB(vWorld.xz * 0.34, t);
       col += (c * pool * warm * 1.1 + pool * 0.06 * warm) * lift;
-      col *= 1.0 - stackShadow(vWorld, normalize(uLight)) * uShadow;
+      if (uTinted > 0.0 && uUseBlocks > 0.5) {
+        // Sunlight crossing each block picks up its colour (stacked blocks multiply) and
+        // focuses into a tighter, brighter caustic where the path through the glass is longest.
+        vec3 Ln = normalize(uLight);
+        vec3 inv = 1.0 / Ln;
+        vec3 ext = vec3(0.75, uBlockHalf, 0.75);
+        vec3 filt = vec3(1.0);
+        float through = 0.0;
+        for (int k = 0; k < 16; k++) {
+          if (uBlocks[k].w < 0.5) continue;
+          float o = boxOcc(vWorld, inv, uBlocks[k].xyz - ext, uBlocks[k].xyz + ext);
+          filt *= mix(vec3(1.0), uBlockTint[k], o);
+          through = max(through, o);
+        }
+        col *= mix(vec3(1.0 - through * uShadow), filt * (1.0 - through * uShadow * 0.4), uTinted);
+        if (through > 0.001) {
+          vec3 fc = causticRGB(vWorld.xz * 0.62 + 3.1, t * 1.25);
+          col += (fc * 0.9 + 0.05) * filt * warm * through * uTinted * lift;
+        }
+      } else {
+        col *= 1.0 - stackShadow(vWorld, normalize(uLight)) * uShadow;
+      }
       col *= mix(1.0, 0.97 - uVignette, smoothstep(5.0, uRadius, length(vWorld.xz)));
     } else {
       float ang = atan(vWorld.z, vWorld.x);
@@ -287,8 +311,17 @@ THEMES["grey-plain"] = { ...THEMES.grey, caustic: 0 };
 THEMES["grey-layered"] = {
   ...THEMES.grey,
   physics: true,
-  glass: 0.12,
-  contrast: 1.25,
+  // No black veil over the colour: the blocks stay bright; only a whisper of edge falloff.
+  glass: 0,
+  edge: 0.22,
+  contrast: 1,
+  occl: 0.16,
+  seam: 0.2,
+  ghostOpacity: 0.62,
+  blockHeight: 0.3,
+  blockLip: 0.05,
+  // How much of each block's shadow becomes coloured light through it (0 = plain grey shadow).
+  tintedCaustics: 0.75,
   layers: [
     { color: "#f59a94", tint: "#ec655f", dist: 2.4, rough: 0.02, ghost: "#ec655f" },
     { color: "#c5d5e4", tint: "#b5cadd", dist: 1.6, rough: 0.01, ghost: "#b5cadd" },
@@ -325,7 +358,7 @@ function initGlass(section, canvas, theme) {
   scene.add(new THREE.HemisphereLight("#fffaf0", theme.ground, 0.3));
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
-  const MOD = { size: 1.5, height: 0.6, radius: 0.34, lip: 0.07 };
+  const MOD = { size: 1.5, height: theme.blockHeight ?? 0.6, radius: 0.34, lip: theme.blockLip ?? 0.07 };
   const PITCH = MOD.height + MOD.lip;
   const GAP = 0.2;
   const STEP = MOD.size + GAP;
@@ -467,6 +500,17 @@ function initGlass(section, canvas, theme) {
 
   const blockUniform = Array.from({ length: 16 }, () => new THREE.Vector4());
   const useBlocks = { value: theme.physics ? 1 : 0 };
+  // Per-block filter for light crossing the glass, in the same order as blockUniform: body colour
+  // times Beer–Lambert attenuation across one block, normalised so the hue tints rather than dims.
+  const blockTint = Array.from({ length: 16 }, () => new THREE.Vector3(1, 1, 1));
+  function filterFor(layer) {
+    const c = new THREE.Color(layer.color || "#ffffff");
+    const a = new THREE.Color(layer.tint);
+    const k = MOD.size / layer.dist;
+    const v = new THREE.Vector3(c.r * a.r ** k, c.g * a.g ** k, c.b * a.b ** k);
+    v.divideScalar(Math.max(v.x, v.y, v.z, 1e-3));
+    return v.lerp(new THREE.Vector3(1, 1, 1), 0.25);
+  }
 
   // Stacks shade one another, each seam gets a contact line, and the glass carries a little black.
   const glassShade = {
@@ -485,6 +529,7 @@ function initGlass(section, canvas, theme) {
     uLight: { value: light },
     uPitch: { value: PITCH },
     uLip: { value: MOD.lip },
+    uBlockHalf: { value: MOD.height / 2 + MOD.lip },
   };
   function shadeGlass(mat) {
     mat.onBeforeCompile = (shader) => {
@@ -529,7 +574,7 @@ function initGlass(section, canvas, theme) {
         .replace(
           "#include <opaque_fragment>",
           `#include <opaque_fragment>
-          float seamD = (abs(vGlassLocalY) - uPitch * 0.5) / 0.07;
+          float seamD = (abs(vGlassLocalY) - uPitch * 0.5) / uLip;
           float seam = exp(-seamD * seamD);
           float occl = stackShadow(vGlassWorld, normalize(uLight));
           float facing = abs(dot(normalize(normal), normalize(vViewPosition)));
@@ -553,6 +598,7 @@ function initGlass(section, canvas, theme) {
   columns.forEach((col) => {
     for (let i = 0; i < col.count; i++) {
       const layer = col.layers?.[i];
+      if (layer && k < blockTint.length) blockTint[k].copy(filterFor(layer));
       const mat = shadeGlass(ownTransmission(glassFor(k++ * 5 + 1, layer)));
       const block = new THREE.Group();
       const parts = [new THREE.Mesh(blockGeo, mat)];
@@ -735,6 +781,9 @@ function initGlass(section, canvas, theme) {
     uGrain: { value: theme.grain },
     uBlocks: { value: blockUniform },
     uUseBlocks: useBlocks,
+    uBlockHalf: { value: MOD.height / 2 + MOD.lip },
+    uBlockTint: { value: blockTint },
+    uTinted: { value: theme.tintedCaustics ?? 0 },
   });
   const floorMat = new THREE.ShaderMaterial({
     uniforms: setUniforms(0),
@@ -835,7 +884,9 @@ function initGlass(section, canvas, theme) {
   envScene.position.y = -1.2;
   scene.environment = pmrem.fromScene(envScene, 0.02).texture;
 
-  const target = new THREE.Vector3(0, 1.3, 0);
+  // Shorter blocks make shorter stacks; drop the camera with them so they stay framed.
+  const drop = (0.67 - PITCH) * 1.5;
+  const target = new THREE.Vector3(0, 1.3 - drop, 0);
 
   // The studio set turns like a turntable that breathes: it lingers on faces and eases between them.
   function placeCamera(t) {
@@ -843,7 +894,7 @@ function initGlass(section, canvas, theme) {
     const r = 12.5;
     camera.position.set(
       target.x + Math.cos(a) * r,
-      4.4 + Math.sin(t * 0.21) * 0.4,
+      4.4 - drop + Math.sin(t * 0.21) * 0.4,
       target.z + Math.sin(a) * r
     );
     camera.lookAt(target);
