@@ -401,9 +401,9 @@ THEMES["grey-layered"] = {
   // How much of each block's shadow becomes coloured light through it (0 = plain grey shadow).
   tintedCaustics: 0.75,
   layers: [
-    { color: "#f59a94", tint: "#ec655f", dist: 2.4, rough: 0.02, ghost: "#ec655f" },
-    { color: "#c5d5e4", tint: "#b5cadd", dist: 1.6, rough: 0.01, ghost: "#b5cadd" },
-    { color: "#ffffff", tint: "#ffffff", dist: 50, rough: 0.2, ghost: "#f4f4f4" },
+    { color: "#f59a94", tint: "#ec655f", dist: 2.4, rough: 0.02, ghost: "#ec655f", ink: "#fdf1ef", icons: ["chart-bar"] },
+    { color: "#c5d5e4", tint: "#b5cadd", dist: 1.6, rough: 0.01, ghost: "#b5cadd", ink: "#22262c", icons: ["timer", "image"] },
+    { color: "#ffffff", tint: "#ffffff", dist: 50, rough: 0.2, ghost: "#f4f4f4", ink: "#1a1a1a", icons: ["cloud-sun", "alarm", "bell"] },
   ],
   // One salmon base per stack at most; blue and white can repeat.
   stacks: [
@@ -746,6 +746,48 @@ function initGlass(section, canvas, theme) {
     return mat;
   }
 
+  // Phosphor (regular) glyphs, 256-unit viewBox.
+  const ICONS = {
+    "cloud-sun": "M164,72a76.2,76.2,0,0,0-20.26,2.73,55.63,55.63,0,0,0-9.41-11.54l9.51-13.57a8,8,0,1,0-13.11-9.18L121.22,54A55.9,55.9,0,0,0,96,48c-.58,0-1.16,0-1.74,0L91.37,31.71a8,8,0,1,0-15.75,2.77L78.5,50.82A56.1,56.1,0,0,0,55.23,65.67L41.61,56.14a8,8,0,1,0-9.17,13.11L46,78.77A55.55,55.55,0,0,0,40,104c0,.57,0,1.15,0,1.72L23.71,108.6a8,8,0,0,0,1.38,15.88,8.24,8.24,0,0,0,1.39-.12l16.32-2.88a55.74,55.74,0,0,0,5.86,12.42A52,52,0,0,0,84,224h80a76,76,0,0,0,0-152ZM56,104a40,40,0,0,1,72.54-23.24,76.26,76.26,0,0,0-35.62,40,52.14,52.14,0,0,0-31,4.17A40,40,0,0,1,56,104ZM164,208H84a36,36,0,1,1,4.78-71.69c-.37,2.37-.63,4.79-.77,7.23a8,8,0,0,0,16,.92,58.91,58.91,0,0,1,1.88-11.81c0-.16.09-.32.12-.48A60.06,60.06,0,1,1,164,208Z",
+    alarm: "M128,40a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,40Zm0,176a80,80,0,1,1,80-80A80.09,80.09,0,0,1,128,216ZM61.66,37.66l-32,32A8,8,0,0,1,18.34,58.34l32-32A8,8,0,0,1,61.66,37.66Zm176,32a8,8,0,0,1-11.32,0l-32-32a8,8,0,0,1,11.32-11.32l32,32A8,8,0,0,1,237.66,69.66ZM184,128a8,8,0,0,1,0,16H128a8,8,0,0,1-8-8V80a8,8,0,0,1,16,0v48Z",
+    bell: "M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z",
+    timer: "M128,40a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,40Zm0,176a80,80,0,1,1,80-80A80.09,80.09,0,0,1,128,216ZM173.66,90.34a8,8,0,0,1,0,11.32l-40,40a8,8,0,0,1-11.32-11.32l40-40A8,8,0,0,1,173.66,90.34ZM96,16a8,8,0,0,1,8-8h48a8,8,0,0,1,0,16H104A8,8,0,0,1,96,16Z",
+    image: "M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z",
+    "chart-bar": "M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z",
+  };
+  const iconMats = new Map();
+  function iconMaterial(name, ink) {
+    const key = name + ink;
+    if (iconMats.has(key)) return iconMats.get(key);
+    const px = 512;
+    const c = document.createElement("canvas");
+    c.width = c.height = px;
+    const g = c.getContext("2d");
+    g.scale(px / 256, px / 256);
+    g.fillStyle = ink;
+    g.fill(new Path2D(ICONS[name]));
+    const map = new THREE.CanvasTexture(c);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const mat = new THREE.MeshStandardMaterial({
+      map,
+      transparent: true,
+      roughness: 0.55,
+      metalness: 0,
+      envMapIntensity: theme.env,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    iconMats.set(key, mat);
+    return mat;
+  }
+  // Printed on the recessed top face inside the rim; every glyph reads in the same direction.
+  const iconGeo = new THREE.PlaneGeometry(0.56, 0.56).rotateX(-Math.PI / 2);
+  const iconMeshes = [];
+  const iconCount = new Map();
+
   const stackUniform = [];
   const glassMeshes = [];
   const ghostColors = [];
@@ -764,6 +806,15 @@ function initGlass(section, canvas, theme) {
       glassMeshes.push(...parts);
       parts.forEach(() => ghostColors.push(layer?.ghost || theme.ghost));
       block.add(...parts);
+      if (layer?.icons) {
+        const n = iconCount.get(layer) ?? 0;
+        iconCount.set(layer, n + 1);
+        const icon = new THREE.Mesh(iconGeo, iconMaterial(layer.icons[n % layer.icons.length], layer.ink));
+        icon.position.y = MOD.height / 2 + 0.001;
+        icon.renderOrder = 1;
+        block.add(icon);
+        iconMeshes.push(icon);
+      }
       block.position.set(col.at[0], MOD.lip + MOD.height / 2 + i * PITCH, col.at[1]);
       group.add(block);
       blocks.push(block);
@@ -1065,9 +1116,12 @@ function initGlass(section, canvas, theme) {
   }
   function renderBehind() {
     glassMeshes.forEach((m, i) => (m.material = ghostMats[i]));
+    // A glyph in the refraction source would reappear, offset, inside its own tile.
+    iconMeshes.forEach((m) => (m.visible = false));
     renderer.setRenderTarget(behindTarget);
     renderer.render(scene, camera);
     renderer.setRenderTarget(null);
+    iconMeshes.forEach((m) => (m.visible = true));
     glassMeshes.forEach((m, i) => (m.material = glassMats[i]));
   }
 
