@@ -2,6 +2,7 @@
 
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { SVGLoader } from "three/addons/loaders/SVGLoader.js";
 // Caps stay dead flat; only the walls and bevels share normals, so the plan corner shades as one curve.
 function smooth(geo) {
   geo.deleteAttribute("uv");
@@ -755,36 +756,55 @@ function initGlass(section, canvas, theme) {
     image: "M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z",
     "chart-bar": "M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z",
   };
-  const iconMats = new Map();
-  function iconMaterial(name, ink) {
-    const key = name + ink;
-    if (iconMats.has(key)) return iconMats.get(key);
-    const px = 512;
-    const c = document.createElement("canvas");
-    c.width = c.height = px;
-    const g = c.getContext("2d");
-    g.scale(px / 256, px / 256);
-    g.fillStyle = ink;
-    g.fill(new Path2D(ICONS[name]));
-    const map = new THREE.CanvasTexture(c);
-    map.colorSpace = THREE.SRGBColorSpace;
-    map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const mat = new THREE.MeshStandardMaterial({
-      map,
-      transparent: true,
-      roughness: 0.55,
-      metalness: 0,
-      envMapIntensity: theme.env,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
+  // A hair of raised enamel: the glyph is extruded from its outline, so the edges catch light.
+  const ICON_SIZE = 0.56;
+  const ICON_RAISE = 0.005;
+  const iconGeos = new Map();
+  function iconGeometry(name) {
+    if (iconGeos.has(name)) return iconGeos.get(name);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path d="${ICONS[name]}"/></svg>`;
+    const shapes = new SVGLoader().parse(svg).paths.flatMap((p) => SVGLoader.createShapes(p));
+    // Depth is in world units; the outline (and so the bevel width) is still in 256-unit glyph space.
+    const bevel = ICON_RAISE * 0.3;
+    const bevelSize = (bevel * 256) / ICON_SIZE;
+    const geo = new THREE.ExtrudeGeometry(shapes, {
+      depth: ICON_RAISE - bevel * 2,
+      bevelEnabled: true,
+      bevelThickness: bevel,
+      bevelSize,
+      bevelOffset: -bevelSize,
+      bevelSegments: 2,
+      curveSegments: 10,
     });
-    iconMats.set(key, mat);
+    // SVG y runs down; rotating (rather than mirroring) keeps the glyph readable from above.
+    geo.translate(-128, -128, 0);
+    geo.scale(ICON_SIZE / 256, ICON_SIZE / 256, 1);
+    geo.rotateX(Math.PI / 2);
+    geo.translate(0, ICON_RAISE - bevel, 0);
+    // A flat, single-layer outline for the shadow, so no area is darkened twice.
+    const flat = new THREE.ShapeGeometry(shapes, 10);
+    flat.translate(-128, -128, 0);
+    flat.scale(ICON_SIZE / 256, ICON_SIZE / 256, 1);
+    flat.rotateX(Math.PI / 2);
+    flat.translate(0, ICON_RAISE, 0);
+    geo.userData.flat = flat;
+    iconGeos.set(name, geo);
+    return geo;
+  }
+  const iconMats = new Map();
+  function iconMaterial(ink) {
+    if (iconMats.has(ink)) return iconMats.get(ink);
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: ink,
+      roughness: 0.34,
+      metalness: 0,
+      clearcoat: 0.8,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: theme.env,
+    });
+    iconMats.set(ink, mat);
     return mat;
   }
-  // Printed on the recessed top face inside the rim; every glyph reads in the same direction.
-  const iconGeo = new THREE.PlaneGeometry(0.56, 0.56).rotateX(-Math.PI / 2);
   const iconMeshes = [];
   const iconCount = new Map();
 
@@ -809,9 +829,9 @@ function initGlass(section, canvas, theme) {
       if (layer?.icons) {
         const n = iconCount.get(layer) ?? 0;
         iconCount.set(layer, n + 1);
-        const icon = new THREE.Mesh(iconGeo, iconMaterial(layer.icons[n % layer.icons.length], layer.ink));
-        icon.position.y = MOD.height / 2 + 0.001;
-        icon.renderOrder = 1;
+        // Painted on the recessed top face inside the rim; every glyph reads in the same direction.
+        const icon = new THREE.Mesh(iconGeometry(layer.icons[n % layer.icons.length]), iconMaterial(layer.ink));
+        icon.position.y = MOD.height / 2 + 0.0004;
         block.add(icon);
         iconMeshes.push(icon);
       }
@@ -1178,6 +1198,60 @@ function initGlass(section, canvas, theme) {
   // in front of the set, so the backdrop needs no depth.
   const setScene = new THREE.Scene();
   setScene.add(floor, wall);
+
+  // The paint is opaque even though the glass isn't: each glyph throws its own shadow through
+  // the tile onto the floor. Planar projection along the key light, a few jittered taps for a
+  // soft penumbra, multiplied over the lit set so caustics and tinted light darken with it.
+  const iconShadows = [];
+  const TAPS = 4;
+  if (iconMeshes.length) {
+    const tapBase = new THREE.MeshBasicMaterial({
+      transparent: true,
+      premultipliedAlpha: true,
+      blending: THREE.MultiplyBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+    });
+    const side = new THREE.Vector3().crossVectors(light, new THREE.Vector3(0, 1, 0)).normalize();
+    const up = new THREE.Vector3().crossVectors(side, light).normalize();
+    const taps = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) =>
+      light.clone().addScaledVector(side, a * 0.01).addScaledVector(up, b * 0.01).normalize()
+    );
+    const h = 0.002;
+    const projectors = taps.map((L) =>
+      new THREE.Matrix4().set(
+        1, -L.x / L.y, 0, (L.x / L.y) * h,
+        0, 0, 0, h,
+        0, -L.z / L.y, 1, (L.z / L.y) * h,
+        0, 0, 0, 1
+      )
+    );
+    iconMeshes.forEach((icon) => {
+      // Under a soft key light a thin glyph's shadow blurs away with distance, so it fades with height.
+      const mat = tapBase.clone();
+      projectors.forEach((P) => {
+        const s = new THREE.Mesh(icon.geometry.userData.flat, mat);
+        s.matrixAutoUpdate = false;
+        s.frustumCulled = false;
+        setScene.add(s);
+        iconShadows.push({ s, icon, P, mat });
+      });
+    });
+  }
+  const iconPos = new THREE.Vector3();
+  function syncIconShadows() {
+    if (!iconShadows.length) return;
+    scene.updateMatrixWorld();
+    iconShadows.forEach(({ s, icon, P, mat }) => {
+      s.matrix.multiplyMatrices(P, icon.matrixWorld);
+      iconPos.setFromMatrixPosition(icon.matrixWorld);
+      const strength = 0.4 * Math.exp(-Math.max(0, iconPos.y - 0.2) * 1.5);
+      mat.color.setScalar(1 - strength / TAPS);
+    });
+  }
   const setTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
   const backdrop = new THREE.Mesh(
     new THREE.PlaneGeometry(2, 2),
@@ -1344,6 +1418,7 @@ function initGlass(section, canvas, theme) {
     wallMat.uniforms.uTime.value = t;
     glassShade.uTime.value = t;
     placeCamera(t);
+    syncIconShadows();
     renderer.setRenderTarget(setTarget);
     renderer.render(setScene, camera);
     renderBehind();
