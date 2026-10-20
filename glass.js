@@ -424,6 +424,13 @@ THEMES["grey-layered-dark"] = {
   vignette: 0,
   caustic: 0.6,
 };
+THEMES["grey-layered-black"] = {
+  ...THEMES["grey-layered-dark"],
+  base: [0, 0, 0],
+  top: [0, 0, 0],
+  ground: "#000000",
+  caustic: 0,
+};
 
 function initGlass(section, canvas, theme) {
   const reduceMotion = window.matchMedia(
