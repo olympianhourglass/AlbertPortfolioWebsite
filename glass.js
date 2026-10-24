@@ -431,7 +431,7 @@ THEMES["grey-layered-black"] = {
   top: [0, 0, 0],
   ground: "#000000",
   caustic: 0,
-  // Lacquered plastic in the same colours: solid bodies, a sharp coat, no light through them.
+  // Polycarbonate, in the vein of the iPhone 5c: the colour is the material, the gloss is soft.
   plastic: true,
   tintedCaustics: 0,
   edge: 0,
@@ -453,16 +453,11 @@ function initGlass(section, canvas, theme) {
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
 
   const light = new THREE.Vector3(0.72, 0.52, 0.46).normalize();
-  const sun = new THREE.DirectionalLight("#fff6e8", 1.1);
+  // Even fill, like a product sweep, so the sides stay in the swatch. The key is only a step above it.
+  const sun = new THREE.DirectionalLight("#fff6e8", theme.plastic ? 1.62 : 1.1);
   sun.position.copy(light).multiplyScalar(12);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight("#fffaf0", theme.ground, 0.3));
-  if (theme.plastic) {
-    // A rim opposite the key light, so the lacquer picks up a second catchlight.
-    const rim = new THREE.DirectionalLight("#ffffff", 0.7);
-    rim.position.set(-8, 5, -4);
-    scene.add(rim);
-  }
+  scene.add(new THREE.HemisphereLight("#fffaf0", theme.plastic ? "#f3f0eb" : theme.ground, theme.plastic ? 1.02 : 0.3));
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
   const MOD = { size: 1.5, height: theme.blockHeight ?? 0.6, radius: 0.34, lip: theme.blockLip ?? 0.07 };
@@ -571,15 +566,21 @@ function initGlass(section, canvas, theme) {
   function glassFor(k, layer) {
     const t = layer ? { ...tints[k % tints.length], ...layer } : tints[k % tints.length];
     if (theme.plastic) {
+      // The swatch is the pigment. A soft polycarbonate polish sits on it, the way the 5c did,
+      // without a mirror coat washing the colour out.
+      const color = new THREE.Color(t.color || "#ffffff");
+      color.lerp(new THREE.Color(t.tint || t.color || "#ffffff"), 0.12);
       return new THREE.MeshPhysicalMaterial({
-        color: t.color || "#ffffff",
+        color,
+        emissive: color,
+        emissiveIntensity: 0.16,
         metalness: 0,
-        roughness: 0.04,
-        ior: 1.5,
-        specularIntensity: 1.2,
+        roughness: 0.14,
+        ior: 1.58,
+        specularIntensity: 0.4,
         clearcoat: 1,
-        clearcoatRoughness: 0.012,
-        envMapIntensity: theme.env * 1.6,
+        clearcoatRoughness: 0.07,
+        envMapIntensity: 0.5,
       });
     }
     return new THREE.MeshPhysicalMaterial({
