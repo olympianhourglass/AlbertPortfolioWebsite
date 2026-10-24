@@ -169,6 +169,7 @@ const setFragment = /* glsl */ `
   uniform float uGrain;
   uniform vec3 uBlockTint[16];
   uniform float uTinted;
+  uniform float uSolid;
   varying vec3 vWorld;
   ${stackShadow}
   ${grain}
@@ -206,7 +207,7 @@ const setFragment = /* glsl */ `
       for (int k = 0; k < 16; k++) {
         if (k == src || uBlocks[k].w < 0.5) continue;
         float o = segOcc(p, inv, uBlocks[k].xyz - ext, uBlocks[k].xyz + ext, len);
-        vis *= mix(vec3(1.0), uBlockTint[k] * 0.3, o);
+        vis *= mix(vec3(1.0), mix(uBlockTint[k] * 0.3, vec3(0.0), uSolid), o);
       }
       sum += uPulseColor[i].rgb * vis * I * (uBase * 0.9 + caus * 1.6);
     }
@@ -430,6 +431,10 @@ THEMES["grey-layered-black"] = {
   top: [0, 0, 0],
   ground: "#000000",
   caustic: 0,
+  // Lacquered plastic in the same colours: solid bodies, a sharp coat, no light through them.
+  plastic: true,
+  tintedCaustics: 0,
+  edge: 0,
 };
 
 function initGlass(section, canvas, theme) {
@@ -452,6 +457,12 @@ function initGlass(section, canvas, theme) {
   sun.position.copy(light).multiplyScalar(12);
   scene.add(sun);
   scene.add(new THREE.HemisphereLight("#fffaf0", theme.ground, 0.3));
+  if (theme.plastic) {
+    // A rim opposite the key light, so the lacquer picks up a second catchlight.
+    const rim = new THREE.DirectionalLight("#ffffff", 0.7);
+    rim.position.set(-8, 5, -4);
+    scene.add(rim);
+  }
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
   const MOD = { size: 1.5, height: theme.blockHeight ?? 0.6, radius: 0.34, lip: theme.blockLip ?? 0.07 };
@@ -559,6 +570,18 @@ function initGlass(section, canvas, theme) {
 
   function glassFor(k, layer) {
     const t = layer ? { ...tints[k % tints.length], ...layer } : tints[k % tints.length];
+    if (theme.plastic) {
+      return new THREE.MeshPhysicalMaterial({
+        color: t.color || "#ffffff",
+        metalness: 0,
+        roughness: 0.04,
+        ior: 1.5,
+        specularIntensity: 1.2,
+        clearcoat: 1,
+        clearcoatRoughness: 0.012,
+        envMapIntensity: theme.env * 1.6,
+      });
+    }
     return new THREE.MeshPhysicalMaterial({
       color: t.color || "#ffffff",
       metalness: 0,
@@ -652,10 +675,12 @@ function initGlass(section, canvas, theme) {
       Object.assign(shader.uniforms, glassShade);
       shader.uniforms.uSelf = { value: mat.userData.self ?? -1 };
       const look = mat.userData.look;
-      shader.uniforms.transmission.value = 1;
-      shader.uniforms.thickness.value = look.thickness;
-      shader.uniforms.attenuationDistance.value = look.dist;
-      shader.uniforms.attenuationColor.value.copy(look.tint);
+      if (look) {
+        shader.uniforms.transmission.value = 1;
+        shader.uniforms.thickness.value = look.thickness;
+        shader.uniforms.attenuationDistance.value = look.dist;
+        shader.uniforms.attenuationColor.value.copy(look.tint);
+      }
       shader.vertexShader = shader.vertexShader
         .replace("#include <common>", "#include <common>\nvarying vec3 vGlassWorld;\nvarying float vGlassLocalY;")
         .replace(
@@ -664,12 +689,14 @@ function initGlass(section, canvas, theme) {
         );
       // Three's own transmission pass only holds opaque objects; refract our pass instead,
       // which also carries the other blocks.
-      const behind = THREE.ShaderChunk.transmission_pars_fragment
-        .replaceAll("transmissionSamplerMap", "uBehind")
-        .replaceAll("transmissionSamplerSize", "uBehindSize")
-        .replace("EnvironmentBRDF( n, v,", "EnvironmentBRDF( pixelFacing( n, v ), v,");
+      if (look) {
+        const behind = THREE.ShaderChunk.transmission_pars_fragment
+          .replaceAll("transmissionSamplerMap", "uBehind")
+          .replaceAll("transmissionSamplerSize", "uBehindSize")
+          .replace("EnvironmentBRDF( n, v,", "EnvironmentBRDF( pixelFacing( n, v ), v,");
+        shader.fragmentShader = shader.fragmentShader.replace("#include <transmission_pars_fragment>", behind);
+      }
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <transmission_pars_fragment>", behind)
         .replace(
           "float dotNVcc = saturate( dot( geometryClearcoatNormal, geometryViewDir ) );",
           "float dotNVcc = pixelNV( saturate( dot( geometryClearcoatNormal, geometryViewDir ) ) );"
@@ -836,7 +863,7 @@ function initGlass(section, canvas, theme) {
     for (let i = 0; i < col.count; i++) {
       const layer = col.layers?.[i];
       if (layer && k < blockTint.length) blockTint[k].copy(filterFor(layer));
-      const mat = shadeGlass(ownTransmission(glassFor(k++ * 5 + 1, layer)));
+      const mat = shadeGlass(theme.plastic ? glassFor(k++ * 5 + 1, layer) : ownTransmission(glassFor(k++ * 5 + 1, layer)));
       mat.userData.self = blocks.length;
       const block = new THREE.Group();
       const parts = [new THREE.Mesh(blockGeo, mat)];
@@ -1205,6 +1232,7 @@ function initGlass(section, canvas, theme) {
     });
   }
   function renderBehind() {
+    if (theme.plastic) return;
     glassMeshes.forEach((m, i) => (m.material = ghostMats[i]));
     // A glyph in the refraction source would reappear, offset, inside its own tile.
     iconMeshes.forEach((m) => (m.visible = false));
@@ -1237,6 +1265,7 @@ function initGlass(section, canvas, theme) {
     uBlockHalf: { value: MOD.height / 2 + MOD.lip },
     uBlockTint: { value: blockTint },
     uTinted: { value: theme.tintedCaustics ?? 0 },
+    uSolid: { value: theme.plastic ? 1 : 0 },
     uPulse: { value: pulsePos },
     uPulseColor: { value: pulseColor },
     uPulseCalm: pulseCalm,
@@ -1274,7 +1303,8 @@ function initGlass(section, canvas, theme) {
   // soft penumbra, multiplied over the lit set so caustics and tinted light darken with it.
   const iconShadows = [];
   const TAPS = 4;
-  if (iconMeshes.length) {
+  // Glyph shadows are cast through the glass onto the floor. Solid plastic stops that light.
+  if (iconMeshes.length && !theme.plastic) {
     const tapBase = new THREE.MeshBasicMaterial({
       transparent: true,
       premultipliedAlpha: true,
