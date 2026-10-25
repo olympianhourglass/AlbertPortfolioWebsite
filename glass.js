@@ -169,7 +169,6 @@ const setFragment = /* glsl */ `
   uniform float uGrain;
   uniform vec3 uBlockTint[16];
   uniform float uTinted;
-  uniform float uSolid;
   varying vec3 vWorld;
   ${stackShadow}
   ${grain}
@@ -207,7 +206,7 @@ const setFragment = /* glsl */ `
       for (int k = 0; k < 16; k++) {
         if (k == src || uBlocks[k].w < 0.5) continue;
         float o = segOcc(p, inv, uBlocks[k].xyz - ext, uBlocks[k].xyz + ext, len);
-        vis *= mix(vec3(1.0), mix(uBlockTint[k] * 0.3, vec3(0.0), uSolid), o);
+        vis *= mix(vec3(1.0), uBlockTint[k] * 0.3, o);
       }
       sum += uPulseColor[i].rgb * vis * I * (uBase * 0.9 + caus * 1.6);
     }
@@ -431,10 +430,6 @@ THEMES["grey-layered-black"] = {
   top: [0, 0, 0],
   ground: "#000000",
   caustic: 0,
-  // Polycarbonate, in the vein of the iPhone 5c: the colour is the material, the gloss is soft.
-  plastic: true,
-  tintedCaustics: 0,
-  edge: 0,
 };
 
 function initGlass(section, canvas, theme) {
@@ -453,11 +448,10 @@ function initGlass(section, canvas, theme) {
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
 
   const light = new THREE.Vector3(0.72, 0.52, 0.46).normalize();
-  // Even fill, like a product sweep, so the sides stay in the swatch. The key is only a step above it.
-  const sun = new THREE.DirectionalLight(theme.plastic ? "#fffaf6" : "#fff6e8", theme.plastic ? 1.62 : 1.1);
+  const sun = new THREE.DirectionalLight("#fff6e8", 1.1);
   sun.position.copy(light).multiplyScalar(12);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(theme.plastic ? "#f4f6f8" : "#fffaf0", theme.plastic ? "#e6ebf0" : theme.ground, theme.plastic ? 1.02 : 0.3));
+  scene.add(new THREE.HemisphereLight("#fffaf0", theme.ground, 0.3));
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
   const MOD = { size: 1.5, height: theme.blockHeight ?? 0.6, radius: 0.34, lip: theme.blockLip ?? 0.07 };
@@ -563,60 +557,8 @@ function initGlass(section, canvas, theme) {
     { tint: "#cdeee2", dist: 7, rough: 0.0, ior: 1.53 },
   ];
 
-  // Push a swatch along its own hue. White stays white; the dyed tiles gain a clear step of chroma.
-  function plasticPigment(hex, tintHex) {
-    const color = new THREE.Color(hex || "#ffffff");
-    color.lerp(new THREE.Color(tintHex || hex || "#ffffff"), 0.45);
-    const raw = color.getHexString();
-    const rgb = [0, 2, 4].map((i) => parseInt(raw.slice(i, i + 2), 16) / 255);
-    const max = Math.max(...rgb);
-    const min = Math.min(...rgb);
-    const span = max - min;
-    if (span < 0.06) return new THREE.Color("#f6f5f3");
-    const l = (max + min) / 2;
-    const s = l > 0.5 ? span / (2 - max - min) : span / (max + min);
-    let h = 0;
-    const [r, g, b] = rgb;
-    if (max === r) h = ((g - b) / span) % 6;
-    else if (max === g) h = (b - r) / span + 2;
-    else h = (r - g) / span + 4;
-    h = ((h / 6) % 1 + 1) % 1;
-    const ns = Math.min(0.7, s + (1 - s) * 0.48);
-    const nl = Math.max(0.66, Math.min(0.8, l * 0.96));
-    const q = nl < 0.5 ? nl * (1 + ns) : nl + ns - nl * ns;
-    const p = 2 * nl - q;
-    const channel = (t) => {
-      t = (t % 1 + 1) % 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-      return p;
-    };
-    const R = Math.round(channel(h + 1 / 3) * 255);
-    const G = Math.round(channel(h) * 255);
-    const B = Math.round(channel(h - 1 / 3) * 255);
-    return new THREE.Color(`rgb(${R},${G},${B})`);
-  }
-
   function glassFor(k, layer) {
     const t = layer ? { ...tints[k % tints.length], ...layer } : tints[k % tints.length];
-    if (theme.plastic) {
-      // Same hues, with the chroma turned up so the polycarbonate reads as dyed rather than washed.
-      const color = plasticPigment(t.color, t.tint);
-      return new THREE.MeshPhysicalMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.22,
-        metalness: 0,
-        roughness: 0.14,
-        ior: 1.58,
-        specularIntensity: 0.32,
-        specularColor: color.clone().lerp(new THREE.Color("#ffffff"), 0.42),
-        clearcoat: 1,
-        clearcoatRoughness: 0.07,
-        envMapIntensity: 0.28,
-      });
-    }
     return new THREE.MeshPhysicalMaterial({
       color: t.color || "#ffffff",
       metalness: 0,
@@ -710,12 +652,10 @@ function initGlass(section, canvas, theme) {
       Object.assign(shader.uniforms, glassShade);
       shader.uniforms.uSelf = { value: mat.userData.self ?? -1 };
       const look = mat.userData.look;
-      if (look) {
-        shader.uniforms.transmission.value = 1;
-        shader.uniforms.thickness.value = look.thickness;
-        shader.uniforms.attenuationDistance.value = look.dist;
-        shader.uniforms.attenuationColor.value.copy(look.tint);
-      }
+      shader.uniforms.transmission.value = 1;
+      shader.uniforms.thickness.value = look.thickness;
+      shader.uniforms.attenuationDistance.value = look.dist;
+      shader.uniforms.attenuationColor.value.copy(look.tint);
       shader.vertexShader = shader.vertexShader
         .replace("#include <common>", "#include <common>\nvarying vec3 vGlassWorld;\nvarying float vGlassLocalY;")
         .replace(
@@ -724,14 +664,12 @@ function initGlass(section, canvas, theme) {
         );
       // Three's own transmission pass only holds opaque objects; refract our pass instead,
       // which also carries the other blocks.
-      if (look) {
-        const behind = THREE.ShaderChunk.transmission_pars_fragment
-          .replaceAll("transmissionSamplerMap", "uBehind")
-          .replaceAll("transmissionSamplerSize", "uBehindSize")
-          .replace("EnvironmentBRDF( n, v,", "EnvironmentBRDF( pixelFacing( n, v ), v,");
-        shader.fragmentShader = shader.fragmentShader.replace("#include <transmission_pars_fragment>", behind);
-      }
+      const behind = THREE.ShaderChunk.transmission_pars_fragment
+        .replaceAll("transmissionSamplerMap", "uBehind")
+        .replaceAll("transmissionSamplerSize", "uBehindSize")
+        .replace("EnvironmentBRDF( n, v,", "EnvironmentBRDF( pixelFacing( n, v ), v,");
       shader.fragmentShader = shader.fragmentShader
+        .replace("#include <transmission_pars_fragment>", behind)
         .replace(
           "float dotNVcc = saturate( dot( geometryClearcoatNormal, geometryViewDir ) );",
           "float dotNVcc = pixelNV( saturate( dot( geometryClearcoatNormal, geometryViewDir ) ) );"
@@ -898,7 +836,7 @@ function initGlass(section, canvas, theme) {
     for (let i = 0; i < col.count; i++) {
       const layer = col.layers?.[i];
       if (layer && k < blockTint.length) blockTint[k].copy(filterFor(layer));
-      const mat = shadeGlass(theme.plastic ? glassFor(k++ * 5 + 1, layer) : ownTransmission(glassFor(k++ * 5 + 1, layer)));
+      const mat = shadeGlass(ownTransmission(glassFor(k++ * 5 + 1, layer)));
       mat.userData.self = blocks.length;
       const block = new THREE.Group();
       const parts = [new THREE.Mesh(blockGeo, mat)];
@@ -1267,7 +1205,6 @@ function initGlass(section, canvas, theme) {
     });
   }
   function renderBehind() {
-    if (theme.plastic) return;
     glassMeshes.forEach((m, i) => (m.material = ghostMats[i]));
     // A glyph in the refraction source would reappear, offset, inside its own tile.
     iconMeshes.forEach((m) => (m.visible = false));
@@ -1300,7 +1237,6 @@ function initGlass(section, canvas, theme) {
     uBlockHalf: { value: MOD.height / 2 + MOD.lip },
     uBlockTint: { value: blockTint },
     uTinted: { value: theme.tintedCaustics ?? 0 },
-    uSolid: { value: theme.plastic ? 1 : 0 },
     uPulse: { value: pulsePos },
     uPulseColor: { value: pulseColor },
     uPulseCalm: pulseCalm,
@@ -1338,8 +1274,7 @@ function initGlass(section, canvas, theme) {
   // soft penumbra, multiplied over the lit set so caustics and tinted light darken with it.
   const iconShadows = [];
   const TAPS = 4;
-  // Glyph shadows are cast through the glass onto the floor. Solid plastic stops that light.
-  if (iconMeshes.length && !theme.plastic) {
+  if (iconMeshes.length) {
     const tapBase = new THREE.MeshBasicMaterial({
       transparent: true,
       premultipliedAlpha: true,
