@@ -454,10 +454,10 @@ function initGlass(section, canvas, theme) {
 
   const light = new THREE.Vector3(0.72, 0.52, 0.46).normalize();
   // Even fill, like a product sweep, so the sides stay in the swatch. The key is only a step above it.
-  const sun = new THREE.DirectionalLight("#fff6e8", theme.plastic ? 1.62 : 1.1);
+  const sun = new THREE.DirectionalLight(theme.plastic ? "#fffaf6" : "#fff6e8", theme.plastic ? 1.62 : 1.1);
   sun.position.copy(light).multiplyScalar(12);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight("#fffaf0", theme.plastic ? "#f3f0eb" : theme.ground, theme.plastic ? 1.02 : 0.3));
+  scene.add(new THREE.HemisphereLight(theme.plastic ? "#f4f6f8" : "#fffaf0", theme.plastic ? "#e6ebf0" : theme.ground, theme.plastic ? 1.02 : 0.3));
 
   // One module, keyed to stack: a rim on top, a skirt below that drops over the rim beneath.
   const MOD = { size: 1.5, height: theme.blockHeight ?? 0.6, radius: 0.34, lip: theme.blockLip ?? 0.07 };
@@ -563,24 +563,58 @@ function initGlass(section, canvas, theme) {
     { tint: "#cdeee2", dist: 7, rough: 0.0, ior: 1.53 },
   ];
 
+  // Push a swatch along its own hue. White stays white; the dyed tiles gain a clear step of chroma.
+  function plasticPigment(hex, tintHex) {
+    const color = new THREE.Color(hex || "#ffffff");
+    color.lerp(new THREE.Color(tintHex || hex || "#ffffff"), 0.45);
+    const raw = color.getHexString();
+    const rgb = [0, 2, 4].map((i) => parseInt(raw.slice(i, i + 2), 16) / 255);
+    const max = Math.max(...rgb);
+    const min = Math.min(...rgb);
+    const span = max - min;
+    if (span < 0.06) return new THREE.Color("#f6f5f3");
+    const l = (max + min) / 2;
+    const s = l > 0.5 ? span / (2 - max - min) : span / (max + min);
+    let h = 0;
+    const [r, g, b] = rgb;
+    if (max === r) h = ((g - b) / span) % 6;
+    else if (max === g) h = (b - r) / span + 2;
+    else h = (r - g) / span + 4;
+    h = ((h / 6) % 1 + 1) % 1;
+    const ns = Math.min(0.7, s + (1 - s) * 0.48);
+    const nl = Math.max(0.66, Math.min(0.8, l * 0.96));
+    const q = nl < 0.5 ? nl * (1 + ns) : nl + ns - nl * ns;
+    const p = 2 * nl - q;
+    const channel = (t) => {
+      t = (t % 1 + 1) % 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    const R = Math.round(channel(h + 1 / 3) * 255);
+    const G = Math.round(channel(h) * 255);
+    const B = Math.round(channel(h - 1 / 3) * 255);
+    return new THREE.Color(`rgb(${R},${G},${B})`);
+  }
+
   function glassFor(k, layer) {
     const t = layer ? { ...tints[k % tints.length], ...layer } : tints[k % tints.length];
     if (theme.plastic) {
-      // The swatch is the pigment. A soft polycarbonate polish sits on it, the way the 5c did,
-      // without a mirror coat washing the colour out.
-      const color = new THREE.Color(t.color || "#ffffff");
-      color.lerp(new THREE.Color(t.tint || t.color || "#ffffff"), 0.12);
+      // Same hues, with the chroma turned up so the polycarbonate reads as dyed rather than washed.
+      const color = plasticPigment(t.color, t.tint);
       return new THREE.MeshPhysicalMaterial({
         color,
         emissive: color,
-        emissiveIntensity: 0.16,
+        emissiveIntensity: 0.22,
         metalness: 0,
         roughness: 0.14,
         ior: 1.58,
-        specularIntensity: 0.4,
+        specularIntensity: 0.32,
+        specularColor: color.clone().lerp(new THREE.Color("#ffffff"), 0.42),
         clearcoat: 1,
         clearcoatRoughness: 0.07,
-        envMapIntensity: 0.5,
+        envMapIntensity: 0.28,
       });
     }
     return new THREE.MeshPhysicalMaterial({
