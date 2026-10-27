@@ -358,6 +358,8 @@ const THEMES = {
     ghostOpacity: 0.32,
     studio: false,
     env: 1.15,
+    blockHeight: 0.3,
+    blockLip: 0.05,
   },
   grey: {
     background: "#e3e3e3",
@@ -381,6 +383,8 @@ const THEMES = {
     // Ring of strip lights and black cards: highlights and darks sweep across the glass as it turns.
     studio: true,
     env: 1.5,
+    blockHeight: 0.3,
+    blockLip: 0.05,
   },
 };
 THEMES["grey-plain"] = { ...THEMES.grey, caustic: 0 };
