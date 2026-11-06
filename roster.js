@@ -508,26 +508,6 @@ function buildInternals() {
   coil.position.set(-0.42, -0.08, 0.22);
   g.add(coil);
 
-  const head = new THREE.Mesh(
-    new RoundedBoxGeometry(SCREEN_W * 0.92, 0.14, 0.22, 1, 0.02),
-    matte("#1a1c1f", { metalness: 0.35, roughness: 0.32 })
-  );
-  head.position.set(SCREEN_X, 1.22, 0.12);
-  g.add(head);
-  const gold = new THREE.Mesh(
-    new THREE.BoxGeometry(SCREEN_W * 0.86, 0.03, 0.16),
-    matte("#d7b15a", { metalness: 0.88, roughness: 0.2 })
-  );
-  gold.position.set(SCREEN_X, 1.28, 0.12);
-  g.add(gold);
-  const roller = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.09, 0.09, SCREEN_W * 0.9, 18),
-    matte("#2a2422", { roughness: 0.7 })
-  );
-  roller.rotation.z = Math.PI / 2;
-  roller.position.set(SCREEN_X, 1.12, 0.02);
-  g.add(roller);
-
   const ribbonMat = matte("#d2a15a", { roughness: 0.45, metalness: 0.05 });
   const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.9, 0.012), ribbonMat);
   ribbon.position.set(SCREEN_X - 0.9, 0.35, 0.18);
@@ -589,6 +569,116 @@ function shellMaterial() {
     side: THREE.DoubleSide,
     envMapIntensity: 1.2,
   });
+}
+
+function rollEndTexture() {
+  return canvasTex((g, w) => {
+    const cx = w / 2;
+    const cy = w / 2;
+    g.fillStyle = "#e8e2d6";
+    g.fillRect(0, 0, w, w);
+    for (let i = 18; i >= 1; i--) {
+      g.strokeStyle = i % 2 === 0 ? "rgba(120,110,95,0.22)" : "rgba(255,252,245,0.5)";
+      g.lineWidth = w * 0.018;
+      g.beginPath();
+      g.arc(cx, cy, (i / 18) * w * 0.48, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.fillStyle = "#c4b496";
+    g.beginPath();
+    g.arc(cx, cy, w * 0.09, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#8a7a5c";
+    g.beginPath();
+    g.arc(cx, cy, w * 0.045, 0, Math.PI * 2);
+    g.fill();
+  }, 512, 512);
+}
+
+function buildPaperBay(paperW) {
+  const g = new THREE.Group();
+  const R = 0.19;
+  const stock = new THREE.MeshStandardMaterial({
+    color: "#f4efe6",
+    roughness: 0.9,
+    metalness: 0,
+    envMapIntensity: 0.06,
+  });
+  const hard = new THREE.MeshStandardMaterial({
+    color: "#141618",
+    roughness: 0.5,
+    metalness: 0.08,
+  });
+
+  const roll = new THREE.Mesh(
+    new THREE.CylinderGeometry(R, R, paperW * 0.94, 48, 1, true),
+    stock
+  );
+  roll.rotation.z = Math.PI / 2;
+  g.add(roll);
+
+  const capMap = rollEndTexture();
+  const capMat = new THREE.MeshStandardMaterial({
+    map: capMap,
+    roughness: 0.85,
+    metalness: 0,
+  });
+  [-1, 1].forEach((side) => {
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(R, 48), capMat);
+    cap.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+    cap.position.x = side * (paperW * 0.47);
+    g.add(cap);
+  });
+
+  const axle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.028, 0.028, paperW * 1.08, 12),
+    matte("#9aa0a6", { metalness: 0.75, roughness: 0.28 })
+  );
+  axle.rotation.z = Math.PI / 2;
+  g.add(axle);
+
+  [-1, 1].forEach((side) => {
+    const plate = new THREE.Mesh(
+      new RoundedBoxGeometry(0.06, R * 2.15, R * 2.05, 1, 0.02),
+      hard
+    );
+    plate.position.x = side * (paperW * 0.5 + 0.05);
+    g.add(plate);
+    const hub = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 0.04, 14),
+      matte("#c5c9ce", { metalness: 0.7, roughness: 0.3 })
+    );
+    hub.rotation.z = Math.PI / 2;
+    hub.position.x = side * (paperW * 0.5 + 0.07);
+    g.add(hub);
+  });
+
+  const tray = new THREE.Mesh(
+    new THREE.CylinderGeometry(R + 0.04, R + 0.04, paperW * 0.9, 24, 1, true, Math.PI, Math.PI),
+    hard
+  );
+  tray.rotation.z = Math.PI / 2;
+  tray.position.y = -0.02;
+  g.add(tray);
+
+  const platen = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.045, 0.045, paperW * 0.9, 18),
+    rubberMat()
+  );
+  platen.rotation.z = Math.PI / 2;
+  platen.position.set(0, R + 0.02, R * 0.35);
+  g.add(platen);
+
+  const feedH = 0.42;
+  const feed = new THREE.Mesh(
+    new THREE.BoxGeometry(paperW * 0.92, feedH, 0.007, 1, 8, 1),
+    stock
+  );
+  feed.position.set(0, R + feedH / 2 - 0.02, R * 0.42);
+  feed.rotation.x = -0.18;
+  g.add(feed);
+
+  return { group: g, radius: R };
 }
 
 function rubberMat() {
@@ -819,10 +909,14 @@ function buildDevice() {
 
   const paperW = SCREEN_W * 0.92;
   const paperH = 1.58;
-  const paperT = 0.044;
+  const paperT = 0.008;
   const mouth = buildPrintMouth(paperW);
   mouth.position.set(SCREEN_X, H / 2 + 0.02, 0.04);
   root.add(mouth);
+
+  const bay = buildPaperBay(paperW);
+  bay.group.position.set(SCREEN_X, 1.08, 0.02);
+  root.add(bay.group);
 
   const paperGeo = makePaperGeo(paperW, paperH, paperT, 28);
   const paperEdge = new THREE.MeshStandardMaterial({
