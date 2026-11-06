@@ -388,10 +388,10 @@ function faceTexture() {
     roundPath(g, sx, sy, sw, sh, 8);
     g.fill();
 
-    // Wordmark, right of the dial.
-    g.fillStyle = "rgba(118,124,130,0.95)";
+    // Wordmark, just into the gray half.
+    g.fillStyle = "rgba(220,224,230,0.92)";
     g.font = `400 48px ${HAAS}`;
-    g.fillText("the roster", w * 0.355, h * 0.81);
+    g.fillText("the roster", splitX + w * 0.035, h * 0.81);
 
     // Heart, year, barcode on the dark half.
     const bx = w * 0.665;
