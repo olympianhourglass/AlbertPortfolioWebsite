@@ -983,14 +983,48 @@ function buildDevice() {
   knob.position.set(KNOB_X, KNOB_Y, zFront + 0.03);
   root.add(knob);
 
-  const rubber = new THREE.MeshStandardMaterial({ color: "#15171a", roughness: 0.7, metalness: 0.05 });
-  [
-    [0.18, 0.07],
-    [-0.32, 0.07],
-  ].forEach(([y, r]) => {
-    const btn = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 16), rubber);
-    btn.scale.set(0.55, 1, 1);
-    btn.position.set(W / 2 + 0.01, y, 0);
+  const brush = canvasTex((g, w, h) => {
+    g.fillStyle = "#c8ccd1";
+    g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 520; i++) {
+      const y = Math.random() * h;
+      const lite = Math.random() > 0.5;
+      g.strokeStyle = lite ? "rgba(255,255,255,0.18)" : "rgba(70,74,80,0.16)";
+      g.lineWidth = 0.6 + Math.random();
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(w, y + (Math.random() - 0.5) * 3);
+      g.stroke();
+    }
+  }, 256, 512);
+  const brushRough = canvasTex((g, w, h) => {
+    g.fillStyle = "#6a6a6a";
+    g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 420; i++) {
+      const y = Math.random() * h;
+      g.strokeStyle = Math.random() > 0.5 ? "#9a9a9a" : "#4a4a4a";
+      g.lineWidth = 0.5 + Math.random();
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(w, y + (Math.random() - 0.5) * 2);
+      g.stroke();
+    }
+  }, 256, 512);
+  const steel = new THREE.MeshPhysicalMaterial({
+    color: "#d5d8dc",
+    map: brush,
+    roughnessMap: brushRough,
+    metalness: 0.96,
+    roughness: 0.22,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.18,
+    envMapIntensity: 1.45,
+  });
+  const btnGeo = new RoundedBoxGeometry(0.034, 0.66, 0.078, 5, 0.015);
+  [0.4, -0.4].forEach((y) => {
+    const btn = new THREE.Mesh(btnGeo, steel);
+    btn.position.set(W / 2 + 0.012, y, 0);
+    btn.castShadow = true;
     root.add(btn);
   });
 
