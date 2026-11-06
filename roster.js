@@ -13,7 +13,7 @@ const H = FACE_H + B * 2;
 const D = 0.94;
 const OUTER_R = 0.615;
 const INNER_R = 0.44;
-const SPLIT = -0.04;
+const SPLIT = -0.55;
 const SCREEN_W = 3.61;
 const SCREEN_H = 0.89;
 const SCREEN_X = 0.12;
@@ -361,7 +361,11 @@ function faceTexture() {
     g.fillRect(splitX - 6, 0, 12, h);
 
     // Speaker slits — three hairlines just left of the split, under the screen.
-    const slitX = [0.376, 0.403, 0.43];
+    const slitX = [
+      splitX / w - 0.116,
+      splitX / w - 0.089,
+      splitX / w - 0.062,
+    ];
     const slitTop = h * 0.46;
     const slitH = h * 0.22;
     slitX.forEach((u) => {
@@ -405,7 +409,7 @@ function faceTexture() {
     g.fill();
     g.restore();
     g.font = `400 32px ${HAAS}`;
-    g.fillText("2006", bx + 34, by + 24);
+    g.fillText("2026", bx + 34, by + 24);
     let x = bx + 112;
     const pattern = [2, 1, 3, 1, 1, 2, 4, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 4, 1, 2, 1, 3, 2, 1, 2];
     pattern.forEach((n, i) => {
