@@ -10,7 +10,7 @@ const FACE_H = 3.0;
 const B = 0.2;
 const W = FACE_W + B * 2;
 const H = FACE_H + B * 2;
-const D = 0.72;
+const D = 0.94;
 const OUTER_R = 0.64;
 const INNER_R = 0.44;
 const SPLIT = -0.04;
@@ -297,6 +297,311 @@ function faceTexture() {
   }, 2048, 1229);
 }
 
+function pcbTexture() {
+  return canvasTex((g, w, h) => {
+    g.fillStyle = "#245c3c";
+    g.fillRect(0, 0, w, h);
+    const edge = g.createLinearGradient(0, 0, 0, 18);
+    edge.addColorStop(0, "rgba(0,0,0,0.35)");
+    edge.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = edge;
+    g.fillRect(0, 0, w, 18);
+    g.fillStyle = "#0f2a1c";
+    roundPath(g, 18, 18, w - 36, h - 36, 28);
+    g.fill();
+
+    g.strokeStyle = "rgba(232, 186, 86, 0.85)";
+    g.lineWidth = 2.4;
+    for (let i = 0; i < 18; i++) {
+      const y = 70 + i * 58;
+      g.beginPath();
+      g.moveTo(40, y);
+      g.lineTo(w - 80, y + ((i % 3) - 1) * 16);
+      g.stroke();
+    }
+    for (let i = 0; i < 12; i++) {
+      const x = 90 + i * 150;
+      g.beginPath();
+      g.moveTo(x, 50);
+      g.lineTo(x + ((i % 2) ? 40 : -20), h - 60);
+      g.stroke();
+    }
+
+    g.fillStyle = "rgba(212, 175, 90, 0.8)";
+    for (let i = 0; i < 90; i++) {
+      const x = 50 + (i * 97) % (w - 100);
+      const y = 50 + (i * 53) % (h - 100);
+      g.beginPath();
+      g.arc(x, y, 3.2, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    g.fillStyle = "rgba(232, 228, 214, 0.78)";
+    g.font = "600 22px 'SF Mono', ui-monospace, Menlo, monospace";
+    g.fillText("THE ROSTER  ·  DEBRIEF I/O", 48, 64);
+    g.font = "500 16px 'SF Mono', ui-monospace, Menlo, monospace";
+    [
+      ["U1  STM32H7", 48, 980],
+      ["U4  FLASH", 400, 980],
+      ["J2  HEAD", 48, 160],
+      ["BT1  3V7", 720, 160],
+      ["LS1", 900, 520],
+      ["ENC1", 48, 720],
+    ].forEach(([t, x, y]) => g.fillText(t, x, y));
+
+    g.strokeStyle = "rgba(232, 228, 214, 0.25)";
+    g.lineWidth = 1.5;
+    roundPath(g, 36, 36, w - 72, h - 72, 22);
+    g.stroke();
+  }, 1024, 1024);
+}
+
+function matte(color, extra = {}) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.48,
+    metalness: 0.12,
+    ...extra,
+  });
+}
+
+function chip(w, h, d, pins = 0) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new RoundedBoxGeometry(w, h, d, 1, 0.015),
+    matte("#141416", { roughness: 0.42, metalness: 0.08 })
+  );
+  g.add(body);
+  const mark = new THREE.Mesh(
+    new THREE.PlaneGeometry(Math.min(w, d) * 0.28, Math.min(w, d) * 0.28),
+    matte("#c4a46a", { metalness: 0.85, roughness: 0.22 })
+  );
+  mark.rotation.x = -Math.PI / 2;
+  mark.position.y = h / 2 + 0.001;
+  g.add(mark);
+  if (pins > 0) {
+    const pin = new THREE.Mesh(
+      new THREE.BoxGeometry(0.028, 0.012, 0.07),
+      matte("#c9cdd2", { metalness: 0.88, roughness: 0.24 })
+    );
+    for (let i = 0; i < pins; i++) {
+      const t = (i / Math.max(1, pins - 1) - 0.5) * (w - 0.05);
+      const a = pin.clone();
+      a.position.set(t, -h / 2 + 0.006, d / 2 + 0.028);
+      g.add(a);
+      const b = pin.clone();
+      b.position.set(t, -h / 2 + 0.006, -d / 2 - 0.028);
+      g.add(b);
+    }
+  }
+  return g;
+}
+
+function buildInternals() {
+  const g = new THREE.Group();
+  const bw = FACE_W * 0.9;
+  const bh = FACE_H * 0.84;
+
+  const board = new THREE.Mesh(
+    new RoundedBoxGeometry(bw, bh, 0.05, 3, 0.1),
+    matte("#163822", { roughness: 0.55 })
+  );
+  g.add(board);
+  const traces = new THREE.Mesh(
+    new THREE.PlaneGeometry(bw - 0.06, bh - 0.06),
+    matte("#1d4a32", { map: pcbTexture(), roughness: 0.38, metalness: 0.22 })
+  );
+  traces.position.z = 0.027;
+  g.add(traces);
+  const tracesBack = traces.clone();
+  tracesBack.rotation.y = Math.PI;
+  tracesBack.position.z = -0.027;
+  g.add(tracesBack);
+
+  const mcu = chip(1.05, 0.1, 1.05, 14);
+  mcu.rotation.x = Math.PI / 2;
+  mcu.position.set(0.7, 0.05, -0.08);
+  g.add(mcu);
+  const flash = chip(0.42, 0.06, 0.28, 6);
+  flash.rotation.x = Math.PI / 2;
+  flash.position.set(1.42, -0.35, -0.07);
+  g.add(flash);
+  const pmic = chip(0.32, 0.05, 0.22, 5);
+  pmic.rotation.x = Math.PI / 2;
+  pmic.position.set(1.35, 0.55, -0.07);
+  g.add(pmic);
+
+  const capMat = matte("#2a1a12", { roughness: 0.35 });
+  const capTop = matte("#c5c8cc", { metalness: 0.7, roughness: 0.28 });
+  [
+    [1.85, 0.2],
+    [1.7, -0.15],
+    [1.9, -0.55],
+    [-0.15, 0.7],
+  ].forEach(([x, y]) => {
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.16, 14), capMat);
+    can.rotation.x = Math.PI / 2;
+    can.position.set(x, y, -0.16);
+    g.add(can);
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.01, 14), capTop);
+    lid.rotation.x = Math.PI / 2;
+    lid.position.set(x, y, -0.24);
+    g.add(lid);
+  });
+
+  const battery = new THREE.Mesh(
+    new RoundedBoxGeometry(1.55, 2.05, 0.32, 2, 0.08),
+    new THREE.MeshPhysicalMaterial({
+      color: "#cfd5dc",
+      metalness: 0.72,
+      roughness: 0.22,
+      clearcoat: 0.4,
+    })
+  );
+  battery.position.set(-1.38, -0.12, -0.22);
+  g.add(battery);
+  const tab = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 0.12, 0.02),
+    matte("#d7b15a", { metalness: 0.8, roughness: 0.3 })
+  );
+  tab.position.set(-1.38, 0.98, -0.16);
+  g.add(tab);
+
+  const encoder = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 0.42, 20),
+    matte("#2b2e33", { metalness: 0.4, roughness: 0.35 })
+  );
+  encoder.rotation.x = Math.PI / 2;
+  encoder.position.set(KNOB_X, KNOB_Y, 0.12);
+  g.add(encoder);
+
+  const speaker = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.28, 0.1, 24),
+    matte("#3a3d42", { metalness: 0.45, roughness: 0.4 })
+  );
+  speaker.rotation.x = Math.PI / 2;
+  speaker.position.set(-0.42, -0.08, 0.16);
+  g.add(speaker);
+  const coil = new THREE.Mesh(
+    new THREE.RingGeometry(0.08, 0.22, 24),
+    matte("#c4a46a", { metalness: 0.7, roughness: 0.3 })
+  );
+  coil.position.set(-0.42, -0.08, 0.22);
+  g.add(coil);
+
+  const head = new THREE.Mesh(
+    new RoundedBoxGeometry(SCREEN_W * 0.92, 0.14, 0.22, 1, 0.02),
+    matte("#1a1c1f", { metalness: 0.35, roughness: 0.32 })
+  );
+  head.position.set(SCREEN_X, 1.22, 0.12);
+  g.add(head);
+  const gold = new THREE.Mesh(
+    new THREE.BoxGeometry(SCREEN_W * 0.86, 0.03, 0.16),
+    matte("#d7b15a", { metalness: 0.88, roughness: 0.2 })
+  );
+  gold.position.set(SCREEN_X, 1.28, 0.12);
+  g.add(gold);
+  const roller = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.09, SCREEN_W * 0.9, 18),
+    matte("#2a2422", { roughness: 0.7 })
+  );
+  roller.rotation.z = Math.PI / 2;
+  roller.position.set(SCREEN_X, 1.12, 0.02);
+  g.add(roller);
+
+  const ribbonMat = matte("#d2a15a", { roughness: 0.45, metalness: 0.05 });
+  const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.9, 0.012), ribbonMat);
+  ribbon.position.set(SCREEN_X - 0.9, 0.35, 0.18);
+  ribbon.rotation.x = -0.35;
+  g.add(ribbon);
+  const ribbon2 = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.012), ribbonMat);
+  ribbon2.position.set(0.05, -0.15, 0.2);
+  g.add(ribbon2);
+
+  const usb = new THREE.Mesh(
+    new RoundedBoxGeometry(0.12, 0.28, 0.18, 1, 0.02),
+    matte("#c5c9ce", { metalness: 0.75, roughness: 0.25 })
+  );
+  usb.position.set(bw / 2 - 0.02, 0.15, 0.05);
+  g.add(usb);
+
+  const led = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 0.06, 0.04),
+    new THREE.MeshBasicMaterial({ color: "#5dff9a" })
+  );
+  led.position.set(1.05, 0.85, 0.06);
+  g.add(led);
+  const glow = new THREE.PointLight("#5dff9a", 0.55, 1.6);
+  glow.position.copy(led.position);
+  g.add(glow);
+
+  [
+    [-2.05, 1.15],
+    [2.05, 1.15],
+    [-2.05, -1.15],
+    [2.05, -1.15],
+  ].forEach(([x, y]) => {
+    const boss = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 0.22, 12),
+      matte("#2c3036", { roughness: 0.5 })
+    );
+    boss.rotation.x = Math.PI / 2;
+    boss.position.set(x, y, 0.02);
+    g.add(boss);
+  });
+
+  g.position.z = -0.08;
+  return g;
+}
+
+function shellMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: "#d5dde4",
+    metalness: 0,
+    roughness: 0.12,
+    transmission: 0.94,
+    thickness: 0.22,
+    ior: 1.49,
+    attenuationColor: new THREE.Color("#8d98a5"),
+    attenuationDistance: 0.7,
+    clearcoat: 1,
+    clearcoatRoughness: 0.08,
+    transparent: true,
+    side: THREE.DoubleSide,
+    envMapIntensity: 1.2,
+  });
+}
+
+function bumperGeometry() {
+  const shape = roundedRect(W, H, OUTER_R);
+  const hole = new THREE.Path();
+  const iw = FACE_W + 0.02;
+  const ih = FACE_H + 0.02;
+  const r = INNER_R;
+  const x = -iw / 2;
+  const y = -ih / 2;
+  hole.moveTo(x + r, y);
+  hole.absarc(x + r, y + r, r, -Math.PI / 2, Math.PI, true);
+  hole.lineTo(x, y + ih - r);
+  hole.absarc(x + r, y + ih - r, r, Math.PI, Math.PI / 2, true);
+  hole.lineTo(x + iw - r, y + ih);
+  hole.absarc(x + iw - r, y + ih - r, r, Math.PI / 2, 0, true);
+  hole.lineTo(x + iw, y + r);
+  hole.absarc(x + iw - r, y + r, r, 0, -Math.PI / 2, true);
+  shape.holes.push(hole);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: D,
+    bevelEnabled: true,
+    bevelThickness: 0.045,
+    bevelSize: 0.04,
+    bevelSegments: 2,
+    curveSegments: 28,
+  });
+  geo.translate(0, 0, -D / 2);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function studioEnv(renderer) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
@@ -324,44 +629,38 @@ function studioEnv(renderer) {
   return pmrem.fromScene(envScene, 0.04).texture;
 }
 
-function plastic(color, extra = {}) {
-  return new THREE.MeshPhysicalMaterial({
-    color,
-    metalness: 0.04,
-    roughness: 0.22,
-    clearcoat: 0.85,
-    clearcoatRoughness: 0.14,
-    envMapIntensity: 0.55,
-    ...extra,
-  });
-}
-
 function buildDevice() {
   const root = new THREE.Group();
   const zFront = D / 2;
 
+  const internals = buildInternals();
+  internals.traverse((obj) => {
+    if (obj.isMesh) obj.castShadow = true;
+  });
+  root.add(internals);
+
   const body = new THREE.Mesh(
-    new RoundedBoxGeometry(W, H, D, 12, OUTER_R),
-    plastic("#9aa1aa", { roughness: 0.3, clearcoat: 0.55, envMapIntensity: 0.6 })
+    bumperGeometry(),
+    shellMaterial()
   );
   body.castShadow = true;
   body.receiveShadow = true;
   root.add(body);
 
-  const back = new THREE.Mesh(
-    new RoundedBoxGeometry(W - 0.08, H - 0.08, 0.08, 8, OUTER_R - 0.04),
-    plastic("#6d737c", { roughness: 0.4, clearcoat: 0.3 })
-  );
-  back.position.z = -D / 2 + 0.02;
-  root.add(back);
-
   const faceMap = faceTexture();
   faceMap.anisotropy = 8;
   const face = shapeMesh(
     roundedRect(FACE_W, FACE_H, INNER_R),
-    new THREE.MeshBasicMaterial({
+    new THREE.MeshPhysicalMaterial({
       map: faceMap,
+      roughness: 0.18,
+      metalness: 0,
+      transmission: 0.38,
+      thickness: 0.08,
+      ior: 1.5,
       transparent: true,
+      side: THREE.FrontSide,
+      envMapIntensity: 0.35,
     })
   );
   face.position.z = zFront + 0.006;
@@ -543,6 +842,9 @@ function bootRoster(section, canvas) {
   const fill = new THREE.DirectionalLight("#e8eef6", 0.45);
   fill.position.set(3.5, 2.4, 5);
   scene.add(fill);
+  const cavity = new THREE.PointLight("#e4ecf6", 1.8, 5);
+  cavity.position.set(0.2, 0.1, -0.15);
+  root.add(cavity);
 
   const floor = new THREE.Mesh(
     new THREE.CircleGeometry(3.6, 48),
@@ -553,8 +855,8 @@ function bootRoster(section, canvas) {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  let yaw = 0.1;
-  let pitch = 0.08;
+  let yaw = 0.62;
+  let pitch = 0.16;
   let tyaw = yaw;
   let tpitch = pitch;
   let dragging = false;
@@ -621,8 +923,8 @@ function bootRoster(section, canvas) {
     clock.getDelta();
     const t = clock.elapsedTime;
     if (!dragging && !reduceMotion) {
-      tyaw = 0.1 + Math.sin(t * 0.2) * 0.18;
-      tpitch = 0.08 + Math.sin(t * 0.16) * 0.025;
+      tyaw = 0.55 + Math.sin(t * 0.16) * 0.42;
+      tpitch = 0.14 + Math.sin(t * 0.13) * 0.05;
     }
     yaw += (tyaw - yaw) * 0.08;
     pitch += (tpitch - pitch) * 0.08;
