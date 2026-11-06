@@ -492,10 +492,41 @@ body {
   color: rgba(242, 242, 242, 0.72);
 }
 
+.showcase-roster {
+  background: #000;
+  cursor: grab;
+}
+
+.showcase-roster .showcase-inner {
+  align-self: stretch;
+  text-align: left;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.showcase-roster .showcase-title {
+  color: #f2f2f2;
+  font-weight: 400;
+  font-size: clamp(2.25rem, 7vw, 3.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.showcase-roster .showcase-sub {
+  font-weight: 300;
+  color: rgba(242, 242, 242, 0.72);
+  margin: 0;
+}
+
+.showcase-roster:active {
+  cursor: grabbing;
+}
+
 .cloud-canvas,
 .cloth-canvas,
 .hud-canvas,
-.glass-canvas {
+.glass-canvas,
+.roster-canvas {
   position: absolute;
   inset: 0;
   z-index: 1;
