@@ -433,61 +433,163 @@ function faceTexture() {
 
 function pcbTexture() {
   return canvasTex((g, w, h) => {
-    g.fillStyle = "#245c3c";
+    g.fillStyle = "#1a6b40";
     g.fillRect(0, 0, w, h);
-    const edge = g.createLinearGradient(0, 0, 0, 18);
-    edge.addColorStop(0, "rgba(0,0,0,0.35)");
-    edge.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = edge;
-    g.fillRect(0, 0, w, 18);
-    g.fillStyle = "#0f2a1c";
-    roundPath(g, 18, 18, w - 36, h - 36, 28);
+    g.globalAlpha = 0.1;
+    for (let i = 0; i < 2200; i++) {
+      g.fillStyle = Math.random() > 0.5 ? "#0c3a24" : "#2f8f55";
+      g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 3, 1);
+    }
+    g.globalAlpha = 1;
+    g.fillStyle = "#134e32";
+    roundPath(g, 28, 28, w - 56, h - 56, 40);
     g.fill();
 
-    g.strokeStyle = "rgba(232, 186, 86, 0.85)";
-    g.lineWidth = 2.4;
-    for (let i = 0; i < 18; i++) {
-      const y = 70 + i * 58;
+    g.strokeStyle = "rgba(28, 92, 56, 0.95)";
+    g.lineWidth = 7;
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    for (let i = 0; i < 16; i++) {
+      const y = 90 + i * 86;
       g.beginPath();
-      g.moveTo(40, y);
-      g.lineTo(w - 80, y + ((i % 3) - 1) * 16);
+      g.moveTo(70, y);
+      g.lineTo(w * 0.42, y + ((i % 2) ? 28 : -18));
+      g.lineTo(w * 0.62, y + 8);
+      g.lineTo(w - 90, y + ((i % 3) - 1) * 22);
       g.stroke();
     }
-    for (let i = 0; i < 12; i++) {
-      const x = 90 + i * 150;
+    g.strokeStyle = "rgba(212, 175, 90, 0.55)";
+    g.lineWidth = 3.2;
+    for (let i = 0; i < 9; i++) {
+      const x = 110 + i * 155;
       g.beginPath();
-      g.moveTo(x, 50);
-      g.lineTo(x + ((i % 2) ? 40 : -20), h - 60);
+      g.moveTo(x, 80);
+      g.lineTo(x + (i % 2 ? 36 : -24), h * 0.46);
+      g.lineTo(x + 10, h - 90);
       g.stroke();
     }
 
-    g.fillStyle = "rgba(212, 175, 90, 0.8)";
-    for (let i = 0; i < 90; i++) {
-      const x = 50 + (i * 97) % (w - 100);
-      const y = 50 + (i * 53) % (h - 100);
+    g.fillStyle = "rgba(212, 175, 90, 0.88)";
+    for (let i = 0; i < 160; i++) {
+      const x = 56 + (i * 89) % (w - 110);
+      const y = 56 + (i * 47) % (h - 110);
       g.beginPath();
-      g.arc(x, y, 3.2, 0, Math.PI * 2);
+      g.arc(x, y, 4.2, 0, Math.PI * 2);
       g.fill();
+      g.fillStyle = "#0a1c12";
+      g.beginPath();
+      g.arc(x, y, 1.8, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "rgba(212, 175, 90, 0.88)";
     }
 
-    g.fillStyle = "rgba(232, 228, 214, 0.78)";
-    g.font = `400 22px ${MONO}`;
-    g.fillText("THE ROSTER  ·  DEBRIEF I/O", 48, 64);
-    g.font = `400 16px ${MONO}`;
+    const pads = [
+      [w * 0.62, h * 0.48, 180, 180],
+      [w * 0.78, h * 0.62, 90, 58],
+      [w * 0.78, h * 0.32, 70, 48],
+      [w * 0.22, h * 0.52, 220, 280],
+    ];
+    g.fillStyle = "rgba(198, 158, 72, 0.35)";
+    pads.forEach(([x, y, pw, ph]) => {
+      roundPath(g, x - pw / 2, y - ph / 2, pw, ph, 10);
+      g.fill();
+    });
+
+    [[70, 70], [w - 70, 70], [70, h - 70], [w - 70, h - 70]].forEach(([x, y]) => {
+      g.fillStyle = "rgba(212, 175, 90, 0.95)";
+      g.beginPath();
+      g.arc(x, y, 22, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#050708";
+      g.beginPath();
+      g.arc(x, y, 11, 0, Math.PI * 2);
+      g.fill();
+    });
+
+    g.fillStyle = "rgba(236, 232, 220, 0.82)";
+    g.font = `400 28px ${MONO}`;
+    g.fillText("THE ROSTER  ·  DEBRIEF I/O  ·  PB-02", 56, 78);
+    g.font = `400 18px ${MONO}`;
     [
-      ["U1  STM32H7", 48, 980],
-      ["U4  FLASH", 400, 980],
-      ["J2  HEAD", 48, 160],
-      ["BT1  3V7", 720, 160],
-      ["LS1", 900, 520],
-      ["ENC1", 48, 720],
+      ["U1  STM32H7B3", w * 0.52, h * 0.39],
+      ["U4  W25Q128", w * 0.72, h * 0.7],
+      ["U6  TPS62840", w * 0.72, h * 0.24],
+      ["BT1  3V7  1200mAh", 56, h * 0.3],
+      ["J1  USB-C", w - 210, h * 0.48],
+      ["Y1  24.000", w * 0.48, h * 0.28],
+      ["LS1", w * 0.38, h * 0.58],
+      ["ENC1", 56, h * 0.72],
+      ["REV C   2026", w - 240, h - 56],
     ].forEach(([t, x, y]) => g.fillText(t, x, y));
 
-    g.strokeStyle = "rgba(232, 228, 214, 0.25)";
-    g.lineWidth = 1.5;
-    roundPath(g, 36, 36, w - 72, h - 72, 22);
+    g.strokeStyle = "rgba(236, 232, 220, 0.28)";
+    g.lineWidth = 2;
+    roundPath(g, 40, 40, w - 80, h - 80, 28);
     g.stroke();
-  }, 1024, 1024);
+    g.fillStyle = "rgba(236, 232, 220, 0.7)";
+    g.beginPath();
+    g.arc(w * 0.5, 64, 9, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#134e32";
+    g.beginPath();
+    g.arc(w * 0.5, 64, 4, 0, Math.PI * 2);
+    g.fill();
+  }, 1536, 1536);
+}
+
+function icLabel(lines) {
+  return canvasTex((g, w, h) => {
+    g.fillStyle = "#1b1b1d";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#c9c4b6";
+    g.font = `400 ${Math.floor(h * 0.16)}px ${MONO}`;
+    lines.forEach((t, i) => g.fillText(t, w * 0.1, h * (0.34 + i * 0.2)));
+    g.fillStyle = "#8a867c";
+    g.beginPath();
+    g.arc(w * 0.16, h * 0.16, h * 0.045, 0, Math.PI * 2);
+    g.fill();
+  }, 256, 256);
+}
+
+function batteryLabel() {
+  return canvasTex((g, w, h) => {
+    g.fillStyle = "#1c1e22";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#f0c14b";
+    g.fillRect(0, 0, w, 28);
+    g.fillRect(0, h - 28, w, 28);
+    g.fillStyle = "#ece8dc";
+    g.font = `400 36px ${HAAS}`;
+    g.fillText("Li-ion", 36, 78);
+    g.font = `400 22px ${MONO}`;
+    g.fillText("3.7V   1200mAh", 36, 118);
+    g.fillText("BT1  ·  THE ROSTER", 36, 156);
+    g.fillStyle = "#9aa0a8";
+    g.font = `400 16px ${MONO}`;
+    g.fillText("ICR-18650 PACK   4.2V MAX", 36, 198);
+    g.fillText("DO NOT PUNCTURE OR INCINERATE", 36, 228);
+    g.fillText("2026-03   PB-DEBRIEF-02", 36, 258);
+    g.fillStyle = "#ece8dc";
+    for (let i = 0; i < 18; i++) {
+      g.fillRect(36 + i * 10, h - 78, i % 3 === 0 ? 5 : 2, 28);
+    }
+  }, 512, 360);
+}
+
+function fpcTexture() {
+  return canvasTex((g, w, h) => {
+    g.fillStyle = "#d2a04a";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "rgba(90, 50, 16, 0.35)";
+    for (let i = 0; i < 18; i++) {
+      g.fillRect(8 + i * (w / 18), 8, w * 0.03, h - 16);
+    }
+    g.fillStyle = "rgba(212, 175, 90, 0.9)";
+    for (let i = 0; i < 18; i++) {
+      g.fillRect(10 + i * (w / 18), 4, w * 0.02, 14);
+      g.fillRect(10 + i * (w / 18), h - 18, w * 0.02, 14);
+    }
+  }, 256, 128);
 }
 
 function matte(color, extra = {}) {
@@ -499,35 +601,138 @@ function matte(color, extra = {}) {
   });
 }
 
-function chip(w, h, d, pins = 0) {
+function pinMetal() {
+  return matte("#c5c9ce", { metalness: 0.9, roughness: 0.22 });
+}
+
+function mountBack(part, x, y, z, h) {
+  part.rotation.x = -Math.PI / 2;
+  part.position.set(x, y, z ?? -0.028 - h / 2);
+  return part;
+}
+
+function qfp(size, height, pinsPerSide, lines) {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new RoundedBoxGeometry(w, h, d, 1, 0.015),
-    matte("#141416", { roughness: 0.42, metalness: 0.08 })
+  g.add(new THREE.Mesh(
+    new RoundedBoxGeometry(size, height, size, 1, 0.018),
+    matte("#1a1a1c", { roughness: 0.36 })
+  ));
+  const label = new THREE.Mesh(
+    new THREE.PlaneGeometry(size * 0.7, size * 0.7),
+    new THREE.MeshBasicMaterial({ map: icLabel(lines) })
   );
-  g.add(body);
-  const mark = new THREE.Mesh(
-    new THREE.PlaneGeometry(Math.min(w, d) * 0.28, Math.min(w, d) * 0.28),
-    matte("#c4a46a", { metalness: 0.85, roughness: 0.22 })
-  );
-  mark.rotation.x = -Math.PI / 2;
-  mark.position.y = h / 2 + 0.001;
-  g.add(mark);
-  if (pins > 0) {
-    const pin = new THREE.Mesh(
-      new THREE.BoxGeometry(0.028, 0.012, 0.07),
-      matte("#c9cdd2", { metalness: 0.88, roughness: 0.24 })
-    );
-    for (let i = 0; i < pins; i++) {
-      const t = (i / Math.max(1, pins - 1) - 0.5) * (w - 0.05);
-      const a = pin.clone();
-      a.position.set(t, -h / 2 + 0.006, d / 2 + 0.028);
-      g.add(a);
-      const b = pin.clone();
-      b.position.set(t, -h / 2 + 0.006, -d / 2 - 0.028);
-      g.add(b);
+  label.rotation.x = -Math.PI / 2;
+  label.rotation.z = Math.PI;
+  label.position.y = height / 2 + 0.001;
+  g.add(label);
+  const pinMat = pinMetal();
+  const lead = new THREE.BoxGeometry(0.016, 0.01, 0.07);
+  const foot = new THREE.BoxGeometry(0.016, 0.008, 0.03);
+  for (let side = 0; side < 4; side++) {
+    for (let i = 0; i < pinsPerSide; i++) {
+      const t = (i / Math.max(1, pinsPerSide - 1) - 0.5) * (size - 0.08);
+      const grp = new THREE.Group();
+      const a = new THREE.Mesh(lead, pinMat);
+      a.position.set(0, -height / 2 + 0.008, size / 2 + 0.03);
+      grp.add(a);
+      const b = new THREE.Mesh(foot, pinMat);
+      b.position.set(0, -height / 2 + 0.004, size / 2 + 0.068);
+      grp.add(b);
+      grp.rotation.y = side * Math.PI / 2;
+      if (side % 2 === 0) grp.position.x = t;
+      else grp.position.z = t;
+      g.add(grp);
     }
   }
+  return g;
+}
+
+function soic(w, d, height, pins, lines) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(
+    new RoundedBoxGeometry(w, height, d, 1, 0.012),
+    matte("#1c1c1e", { roughness: 0.38 })
+  ));
+  const label = new THREE.Mesh(
+    new THREE.PlaneGeometry(w * 0.72, d * 0.62),
+    new THREE.MeshBasicMaterial({ map: icLabel(lines) })
+  );
+  label.rotation.x = -Math.PI / 2;
+  label.rotation.z = Math.PI;
+  label.position.y = height / 2 + 0.001;
+  g.add(label);
+  const pinMat = pinMetal();
+  const lead = new THREE.BoxGeometry(0.018, 0.01, 0.055);
+  for (let i = 0; i < pins; i++) {
+    const t = (i / Math.max(1, pins - 1) - 0.5) * (w - 0.06);
+    for (const s of [-1, 1]) {
+      const p = new THREE.Mesh(lead, pinMat);
+      p.position.set(t, -height / 2 + 0.006, s * (d / 2 + 0.024));
+      g.add(p);
+    }
+  }
+  return g;
+}
+
+function mlcc(w, h, d) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(w * 0.7, h, d), matte("#c4a882", { roughness: 0.45 })));
+  const cap = matte("#cfd3d8", { metalness: 0.82, roughness: 0.26 });
+  for (const s of [-1, 1]) {
+    const t = new THREE.Mesh(new THREE.BoxGeometry(w * 0.18, h * 1.02, d * 1.02), cap);
+    t.position.x = s * w * 0.41;
+    g.add(t);
+  }
+  return g;
+}
+
+function electrolytic(r, h) {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(
+    new THREE.CylinderGeometry(r, r, h, 20),
+    matte("#1a1c20", { roughness: 0.4 })
+  ));
+  const sleeve = new THREE.Mesh(
+    new THREE.CylinderGeometry(r * 1.02, r * 1.02, h * 0.72, 20, 1, true),
+    matte("#2a1c14", { roughness: 0.48 })
+  );
+  sleeve.position.y = -h * 0.04;
+  g.add(sleeve);
+  const lid = new THREE.Mesh(
+    new THREE.CylinderGeometry(r * 0.92, r * 0.92, 0.008, 20),
+    matte("#c8ccd0", { metalness: 0.78, roughness: 0.24 })
+  );
+  lid.position.y = h / 2 - 0.002;
+  g.add(lid);
+  const vent = matte("#8a9098", { metalness: 0.5, roughness: 0.35 });
+  const v1 = new THREE.Mesh(new THREE.BoxGeometry(r * 1.4, 0.004, 0.01), vent);
+  v1.position.y = h / 2 + 0.003;
+  g.add(v1);
+  const v2 = v1.clone();
+  v2.rotation.y = Math.PI / 2;
+  g.add(v2);
+  const stripe = new THREE.Mesh(
+    new THREE.BoxGeometry(r * 0.18, h * 0.7, 0.004),
+    matte("#c5c8cc", { metalness: 0.4, roughness: 0.4 })
+  );
+  stripe.position.set(r * 0.92, 0, 0);
+  g.add(stripe);
+  return g;
+}
+
+function screwHead() {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.06, 0.028, 16),
+    matte("#8a9098", { metalness: 0.78, roughness: 0.28 })
+  ));
+  const slot = matte("#1c1e22", { roughness: 0.6 });
+  const a = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.016, 0.012), slot);
+  a.position.y = 0.01;
+  g.add(a);
+  const b = a.clone();
+  b.rotation.y = Math.PI / 2;
+  g.add(b);
   return g;
 }
 
@@ -535,117 +740,214 @@ function buildInternals() {
   const g = new THREE.Group();
   const bw = FACE_W * 0.9;
   const bh = FACE_H * 0.84;
+  const boardZ = 0.028;
 
-  const board = new THREE.Mesh(
-    new RoundedBoxGeometry(bw, bh, 0.05, 3, 0.1),
-    matte("#163822", { roughness: 0.55 })
+  const core = new THREE.Mesh(
+    new RoundedBoxGeometry(bw - 0.02, bh - 0.02, 0.044, 2, 0.08),
+    matte("#b08948", { roughness: 0.62, metalness: 0.08 })
   );
-  g.add(board);
-  const traces = new THREE.Mesh(
-    new THREE.PlaneGeometry(bw - 0.06, bh - 0.06),
-    matte("#1d4a32", { map: pcbTexture(), roughness: 0.38, metalness: 0.22 })
-  );
-  traces.position.z = 0.027;
+  g.add(core);
+  const mask = matte("#3d8f5c", { map: pcbTexture(), roughness: 0.42, metalness: 0.18 });
+  const traces = new THREE.Mesh(new THREE.PlaneGeometry(bw - 0.05, bh - 0.05), mask);
+  traces.position.z = boardZ;
   g.add(traces);
-  const tracesBack = traces.clone();
+  const tracesBack = new THREE.Mesh(new THREE.PlaneGeometry(bw - 0.05, bh - 0.05), mask);
   tracesBack.rotation.y = Math.PI;
-  tracesBack.position.z = -0.027;
+  tracesBack.position.z = -boardZ;
   g.add(tracesBack);
 
-  const mcu = chip(1.05, 0.1, 1.05, 14);
-  mcu.rotation.x = Math.PI / 2;
-  mcu.position.set(0.7, 0.05, -0.08);
+  const mcuH = 0.09;
+  const mcu = mountBack(qfp(0.92, mcuH, 8, ["STM32H7B3", "U1  ARM", "THE ROSTER"]), 0.68, 0.06, null, mcuH);
   g.add(mcu);
-  const flash = chip(0.42, 0.06, 0.28, 6);
-  flash.rotation.x = Math.PI / 2;
-  flash.position.set(1.42, -0.35, -0.07);
-  g.add(flash);
-  const pmic = chip(0.32, 0.05, 0.22, 5);
-  pmic.rotation.x = Math.PI / 2;
-  pmic.position.set(1.35, 0.55, -0.07);
-  g.add(pmic);
 
-  const capMat = matte("#2a1a12", { roughness: 0.35 });
-  const capTop = matte("#c5c8cc", { metalness: 0.7, roughness: 0.28 });
-  [
-    [1.85, 0.2],
-    [1.7, -0.15],
-    [1.9, -0.55],
-    [-0.15, 0.7],
-  ].forEach(([x, y]) => {
-    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.16, 14), capMat);
-    can.rotation.x = Math.PI / 2;
-    can.position.set(x, y, -0.16);
-    g.add(can);
-    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.01, 14), capTop);
-    lid.rotation.x = Math.PI / 2;
-    lid.position.set(x, y, -0.24);
-    g.add(lid);
-  });
+  const can = extrudeRing(1.18, 1.18, 1.02, 1.02, 0.06, 0.05, 0.12, matte("#8d939b", { metalness: 0.72, roughness: 0.32 }), 0.004);
+  can.position.set(0.68, 0.06, -0.09);
+  g.add(can);
+  const lid = extrudeRing(1.16, 1.16, 0.62, 0.62, 0.055, 0.04, 0.012, matte("#9aa0a8", { metalness: 0.7, roughness: 0.3 }), 0.003);
+  lid.position.set(0.68, 0.06, -0.155);
+  g.add(lid);
+  const seam = extrudeRing(1.12, 1.12, 1.04, 1.04, 0.05, 0.046, 0.004, matte("#2a2d32", { roughness: 0.7 }), 0);
+  seam.position.set(0.68, 0.06, -0.148);
+  g.add(seam);
 
-  const battery = new THREE.Mesh(
-    new RoundedBoxGeometry(1.55, 2.05, 0.32, 2, 0.08),
-    new THREE.MeshPhysicalMaterial({
-      color: "#cfd5dc",
-      metalness: 0.72,
-      roughness: 0.22,
-      clearcoat: 0.4,
-    })
-  );
-  battery.position.set(-1.38, -0.12, -0.22);
-  g.add(battery);
-  const tab = new THREE.Mesh(
-    new THREE.BoxGeometry(0.35, 0.12, 0.02),
-    matte("#d7b15a", { metalness: 0.8, roughness: 0.3 })
-  );
-  tab.position.set(-1.38, 0.98, -0.16);
-  g.add(tab);
+  const flashH = 0.055;
+  g.add(mountBack(soic(0.52, 0.3, flashH, 4, ["W25Q128", "U4  FLASH"]), 1.5, -0.4, null, flashH));
+  const pmicH = 0.05;
+  g.add(mountBack(soic(0.36, 0.24, pmicH, 3, ["TPS62840", "U6  PMIC"]), 1.46, 0.52, null, pmicH));
 
-  const encoder = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.16, 0.16, 0.42, 20),
-    matte("#2b2e33", { metalness: 0.4, roughness: 0.35 })
+  const xtal = new THREE.Group();
+  xtal.add(new THREE.Mesh(
+    new RoundedBoxGeometry(0.22, 0.08, 0.16, 1, 0.02),
+    matte("#c5c9ce", { metalness: 0.82, roughness: 0.26 })
+  ));
+  const xtalTop = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.16, 0.1),
+    new THREE.MeshBasicMaterial({ map: icLabel(["24.000", "Y1"]) })
   );
-  encoder.rotation.x = Math.PI / 2;
-  encoder.position.set(KNOB_X, KNOB_Y, 0.12);
-  g.add(encoder);
+  xtalTop.rotation.x = -Math.PI / 2;
+  xtalTop.rotation.z = Math.PI;
+  xtalTop.position.y = 0.042;
+  xtal.add(xtalTop);
+  g.add(mountBack(xtal, 0.08, 0.58, null, 0.08));
 
-  const speaker = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.28, 0.28, 0.1, 24),
-    matte("#3a3d42", { metalness: 0.45, roughness: 0.4 })
-  );
-  speaker.rotation.x = Math.PI / 2;
-  speaker.position.set(-0.42, -0.08, 0.16);
-  g.add(speaker);
   const coil = new THREE.Mesh(
-    new THREE.RingGeometry(0.08, 0.22, 24),
-    matte("#c4a46a", { metalness: 0.7, roughness: 0.3 })
+    new RoundedBoxGeometry(0.28, 0.14, 0.28, 1, 0.03),
+    matte("#3a2a18", { roughness: 0.5, metalness: 0.15 })
   );
-  coil.position.set(-0.42, -0.08, 0.22);
-  g.add(coil);
+  g.add(mountBack(coil, 1.12, 0.52, null, 0.14));
 
-  const ribbonMat = matte("#d2a15a", { roughness: 0.45, metalness: 0.05 });
-  const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.9, 0.012), ribbonMat);
-  ribbon.position.set(SCREEN_X - 0.9, 0.35, 0.18);
-  ribbon.rotation.x = -0.35;
+  [
+    [1.86, 0.18],
+    [1.72, -0.12],
+    [1.88, -0.52],
+    [0.18, 0.72],
+  ].forEach(([x, y]) => g.add(mountBack(electrolytic(0.075, 0.2), x, y, null, 0.2)));
+
+  [
+    [1.18, -0.08, 0.08, 0.04, 0.05],
+    [1.3, -0.08, 0.08, 0.04, 0.05],
+    [1.22, 0.28, 0.06, 0.032, 0.04],
+    [0.28, 0.28, 0.07, 0.036, 0.045],
+    [1.58, 0.28, 0.06, 0.03, 0.04],
+    [0.92, -0.42, 0.05, 0.028, 0.035],
+  ].forEach(([x, y, w, h, d]) => g.add(mountBack(mlcc(w, h, d), x, y, null, h)));
+
+  const pack = new THREE.Group();
+  pack.add(new THREE.Mesh(
+    new RoundedBoxGeometry(1.52, 2.02, 0.3, 2, 0.06),
+    matte("#c8ced6", { metalness: 0.55, roughness: 0.28 })
+  ));
+  const wrap = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.42, 1.88),
+    new THREE.MeshStandardMaterial({ map: batteryLabel(), roughness: 0.55, metalness: 0.05 })
+  );
+  wrap.rotation.y = Math.PI;
+  wrap.position.z = -0.155;
+  pack.add(wrap);
+  const tape = new THREE.Mesh(
+    new THREE.BoxGeometry(1.54, 0.18, 0.32),
+    matte("#c45a12", { roughness: 0.55, metalness: 0.05 })
+  );
+  tape.position.y = 0.82;
+  pack.add(tape);
+  const pcm = new THREE.Mesh(
+    new RoundedBoxGeometry(1.2, 0.22, 0.06, 1, 0.02),
+    matte("#1d5c3a", { roughness: 0.45, metalness: 0.15 })
+  );
+  pcm.position.set(0, 0.98, -0.04);
+  pack.add(pcm);
+  const nickel = pinMetal();
+  for (const x of [-0.28, 0.28]) {
+    const tab = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.018), nickel);
+    tab.position.set(x, 1.08, -0.08);
+    pack.add(tab);
+  }
+  pack.position.set(-1.32, -0.1, -0.2);
+  g.add(pack);
+
+  const enc = new THREE.Group();
+  enc.add(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.17, 0.17, 0.22, 22),
+    matte("#2a2d32", { metalness: 0.45, roughness: 0.34 })
+  ));
+  const bush = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.11, 0.28, 16),
+    matte("#8b9098", { metalness: 0.8, roughness: 0.26 })
+  );
+  bush.position.y = 0.18;
+  enc.add(bush);
+  const nut = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.14, 0.04, 6),
+    matte("#9aa0a8", { metalness: 0.78, roughness: 0.3 })
+  );
+  nut.position.y = 0.08;
+  enc.add(nut);
+  enc.rotation.x = -Math.PI / 2;
+  enc.position.set(KNOB_X, KNOB_Y, 0.02);
+  g.add(enc);
+
+  const spk = new THREE.Group();
+  spk.add(new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 0.3, 0.08, 28),
+    matte("#2e3238", { metalness: 0.4, roughness: 0.42 })
+  ));
+  const mag = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.16, 0.07, 20),
+    matte("#3a3d42", { metalness: 0.55, roughness: 0.35 })
+  );
+  mag.position.y = -0.06;
+  spk.add(mag);
+  const cone = new THREE.Mesh(
+    new THREE.RingGeometry(0.07, 0.24, 28),
+    matte("#c4a46a", { metalness: 0.65, roughness: 0.32 })
+  );
+  cone.rotation.x = -Math.PI / 2;
+  cone.position.y = 0.042;
+  spk.add(cone);
+  spk.rotation.x = -Math.PI / 2;
+  spk.position.set(-0.42, -0.08, 0.12);
+  g.add(spk);
+
+  const fpcMap = fpcTexture();
+  const fpcMat = matte("#d2a15a", { map: fpcMap, roughness: 0.46, metalness: 0.08 });
+  const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.9, 0.01), fpcMat);
+  ribbon.position.set(SCREEN_X - 0.95, 0.32, 0.16);
+  ribbon.rotation.x = -0.32;
   g.add(ribbon);
-  const ribbon2 = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.22, 0.012), ribbonMat);
-  ribbon2.position.set(0.05, -0.15, 0.2);
+  const ribbon2 = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.2, 0.01), fpcMat);
+  ribbon2.position.set(0.02, -0.18, 0.17);
   g.add(ribbon2);
-
-  const usb = new THREE.Mesh(
-    new RoundedBoxGeometry(0.12, 0.28, 0.18, 1, 0.02),
-    matte("#c5c9ce", { metalness: 0.75, roughness: 0.25 })
+  const zif = new THREE.Mesh(
+    new RoundedBoxGeometry(0.5, 0.08, 0.16, 1, 0.012),
+    matte("#1e2024", { roughness: 0.4 })
   );
-  usb.position.set(bw / 2 - 0.02, 0.15, 0.05);
+  zif.position.set(SCREEN_X - 0.95, 0.72, 0.05);
+  g.add(zif);
+  const latch = new THREE.Mesh(
+    new THREE.BoxGeometry(0.48, 0.02, 0.12),
+    matte("#c5c9ce", { metalness: 0.7, roughness: 0.3 })
+  );
+  latch.position.set(SCREEN_X - 0.95, 0.76, 0.05);
+  g.add(latch);
+
+  const usb = new THREE.Group();
+  usb.add(new THREE.Mesh(
+    new RoundedBoxGeometry(0.1, 0.3, 0.22, 1, 0.012),
+    matte("#c5c9ce", { metalness: 0.82, roughness: 0.22 })
+  ));
+  const insert = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.2, 0.14),
+    matte("#1a1c20", { roughness: 0.45 })
+  );
+  insert.position.x = 0.04;
+  usb.add(insert);
+  const tongue = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.16, 0.04),
+    matte("#d4b56a", { metalness: 0.85, roughness: 0.24 })
+  );
+  tongue.position.x = 0.05;
+  usb.add(tongue);
+  const shellLip = extrudeRing(0.22, 0.32, 0.14, 0.22, 0.02, 0.012, 0.018, matte("#2a2d32", { roughness: 0.5 }), 0.002);
+  shellLip.rotation.y = Math.PI / 2;
+  shellLip.position.x = 0.06;
+  usb.add(shellLip);
+  usb.position.set(bw / 2 - 0.01, 0.18, -0.02);
   g.add(usb);
 
   const led = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.06, 0.04),
-    new THREE.MeshBasicMaterial({ color: "#5dff9a" })
+    new THREE.BoxGeometry(0.05, 0.03, 0.08),
+    new THREE.MeshPhysicalMaterial({
+      color: "#7dffb0",
+      emissive: "#3dff88",
+      emissiveIntensity: 0.9,
+      roughness: 0.2,
+      transmission: 0.35,
+      transparent: true,
+    })
   );
-  led.position.set(1.05, 0.85, 0.06);
+  led.position.set(1.08, 0.86, 0.05);
   g.add(led);
-  const glow = new THREE.PointLight("#5dff9a", 0.55, 1.6);
+  const glow = new THREE.PointLight("#5dff9a", 0.45, 1.4);
   glow.position.copy(led.position);
   g.add(glow);
 
@@ -656,13 +958,21 @@ function buildInternals() {
     [2.05, -1.15],
   ].forEach(([x, y]) => {
     const boss = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.09, 0.09, 0.22, 12),
-      matte("#2c3036", { roughness: 0.5 })
+      new THREE.CylinderGeometry(0.09, 0.1, 0.2, 14),
+      matte("#2c3036", { roughness: 0.48 })
     );
     boss.rotation.x = Math.PI / 2;
-    boss.position.set(x, y, 0.02);
+    boss.position.set(x, y, 0.01);
     g.add(boss);
+    const screw = screwHead();
+    screw.rotation.x = Math.PI / 2;
+    screw.position.set(x, y, -0.1);
+    g.add(screw);
   });
+
+  const backFill = new THREE.PointLight("#e4ecf4", 0.95, 3.2);
+  backFill.position.set(0.15, 0.05, -0.62);
+  g.add(backFill);
 
   g.position.z = -0.08;
   return g;
