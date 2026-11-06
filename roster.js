@@ -137,23 +137,83 @@ function paperBackTexture() {
   }, 256, 512);
 }
 
-function screenTexture() {
-  return canvasTex((g, w, h) => {
-    g.fillStyle = "#2c2c2e";
+function makeScreenDisplay() {
+  const w = 1536;
+  const h = 420;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const g = c.getContext("2d");
+  const texture = new THREE.CanvasTexture(c);
+  texture.anisotropy = 8;
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  function glyph(text, x, y) {
+    g.shadowColor = "#3d9dff";
+    g.shadowBlur = 26;
+    g.fillStyle = "#5eb0ff";
+    g.fillText(text, x, y);
+    g.shadowBlur = 10;
+    g.fillStyle = "#c5e4ff";
+    g.fillText(text, x, y);
+    g.shadowBlur = 0;
+    g.fillStyle = "#eaf5ff";
+    g.fillText(text, x, y);
+  }
+
+  function draw(cursorOn) {
+    const bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#0c1a2c");
+    bg.addColorStop(0.45, "#070f1a");
+    bg.addColorStop(1, "#050a12");
+    g.fillStyle = bg;
     g.fillRect(0, 0, w, h);
-    const inset = g.createLinearGradient(0, 0, 0, h);
-    inset.addColorStop(0, "rgba(0,0,0,0.35)");
-    inset.addColorStop(0.18, "rgba(0,0,0,0)");
-    inset.addColorStop(1, "rgba(0,0,0,0.08)");
-    g.fillStyle = inset;
+
+    const wash = g.createRadialGradient(w * 0.4, h * 0.48, 0, w * 0.4, h * 0.48, w * 0.7);
+    wash.addColorStop(0, "rgba(46, 120, 200, 0.28)");
+    wash.addColorStop(0.55, "rgba(20, 60, 120, 0.1)");
+    wash.addColorStop(1, "rgba(0, 0, 0, 0)");
+    g.fillStyle = wash;
     g.fillRect(0, 0, w, h);
-    g.fillStyle = "#f3f3f3";
+
+    g.fillStyle = "rgba(4, 10, 20, 0.38)";
+    for (let y = 0; y < h; y += 3) g.fillRect(0, y, w, 1);
+
+    g.globalAlpha = 0.045;
+    for (let i = 0; i < 420; i++) {
+      g.fillStyle = Math.random() > 0.55 ? "#8ec8ff" : "#000810";
+      g.fillRect(Math.random() * w, Math.random() * h, 2, 1);
+    }
+    g.globalAlpha = 1;
+
+    const vig = g.createRadialGradient(w / 2, h / 2, h * 0.18, w / 2, h / 2, w * 0.62);
+    vig.addColorStop(0, "rgba(0,0,0,0)");
+    vig.addColorStop(1, "rgba(0,0,0,0.5)");
+    g.fillStyle = vig;
+    g.fillRect(0, 0, w, h);
+
     g.font = `400 88px ${MONO}`;
-    g.fillText("> print?", 72, 158);
+    g.textBaseline = "alphabetic";
+    glyph("> print?", 72, 158);
     const yn = "y/n";
-    g.fillText(yn, w - 72 - g.measureText(yn).width, 158);
-    g.fillText("> y", 72, 278);
-  }, 1536, 420);
+    glyph(yn, w - 72 - g.measureText(yn).width, 158);
+    const line2 = "> y";
+    glyph(line2, 72, 278);
+
+    if (cursorOn) {
+      const cx = 72 + g.measureText(line2).width + 16;
+      g.shadowColor = "#4aa6ff";
+      g.shadowBlur = 18;
+      g.fillStyle = "#b7ddff";
+      g.fillRect(cx, 216, 40, 74);
+      g.shadowBlur = 0;
+    }
+
+    texture.needsUpdate = true;
+  }
+
+  draw(true);
+  return { texture, draw };
 }
 
 function knobCapTexture() {
@@ -875,37 +935,60 @@ function buildDevice() {
   root.add(face);
 
   const well = shapeMesh(
-    roundedRect(SCREEN_W + 0.04, SCREEN_H + 0.04, 0.03),
-    new THREE.MeshStandardMaterial({ color: "#141416", roughness: 0.55, metalness: 0.1 })
+    roundedRect(SCREEN_W + 0.05, SCREEN_H + 0.05, 0.035),
+    new THREE.MeshStandardMaterial({ color: "#07080c", roughness: 0.42, metalness: 0.18 })
   );
   well.position.set(SCREEN_X, SCREEN_Y, zFront + 0.01);
   well.renderOrder = 2;
   root.add(well);
 
+  const screen = makeScreenDisplay();
   const lcd = shapeMesh(
     roundedRect(SCREEN_W, SCREEN_H, 0.025),
-    new THREE.MeshBasicMaterial({ map: screenTexture() })
+    new THREE.MeshBasicMaterial({
+      map: screen.texture,
+      toneMapped: false,
+    })
   );
-  lcd.position.set(SCREEN_X, SCREEN_Y, zFront + 0.018);
+  lcd.position.set(SCREEN_X, SCREEN_Y, zFront + 0.016);
   lcd.renderOrder = 3;
   root.add(lcd);
 
-  const glass = shapeMesh(
-    roundedRect(SCREEN_W, SCREEN_H, 0.04),
+  const polarizer = shapeMesh(
+    roundedRect(SCREEN_W, SCREEN_H, 0.03),
     new THREE.MeshPhysicalMaterial({
-      color: "#ffffff",
-      metalness: 0.1,
-      roughness: 0.06,
+      color: "#17304c",
+      metalness: 0.05,
+      roughness: 0.18,
       transparent: true,
-      opacity: 0.06,
-      clearcoat: 1,
-      clearcoatRoughness: 0.04,
-      envMapIntensity: 0.5,
+      opacity: 0.16,
+      envMapIntensity: 0.35,
     })
   );
-  glass.position.set(SCREEN_X, SCREEN_Y, zFront + 0.022);
-  glass.renderOrder = 4;
+  polarizer.position.set(SCREEN_X, SCREEN_Y, zFront + 0.019);
+  polarizer.renderOrder = 4;
+  root.add(polarizer);
+
+  const glass = shapeMesh(
+    roundedRect(SCREEN_W + 0.012, SCREEN_H + 0.012, 0.04),
+    new THREE.MeshPhysicalMaterial({
+      color: "#c5dcff",
+      metalness: 0.04,
+      roughness: 0.03,
+      transparent: true,
+      opacity: 0.12,
+      clearcoat: 1,
+      clearcoatRoughness: 0.03,
+      envMapIntensity: 1.15,
+    })
+  );
+  glass.position.set(SCREEN_X, SCREEN_Y, zFront + 0.023);
+  glass.renderOrder = 5;
   root.add(glass);
+
+  const screenGlow = new THREE.PointLight("#5aa8ff", 1.05, 2.15);
+  screenGlow.position.set(SCREEN_X, SCREEN_Y, zFront + 0.32);
+  root.add(screenGlow);
 
   const paperW = SCREEN_W * 0.92;
   const paperH = 1.58;
@@ -1050,7 +1133,15 @@ function buildDevice() {
   glint.position.set(W / 2 + 0.38, yLow + btnLen / 2 + yGap / 2, 0.42);
   root.add(glint);
 
-  return { root, paper, paperGeo, knob };
+  let cursorLit = true;
+  function tickScreen(t) {
+    const on = reduceMotion ? true : t % 1.06 < 0.56;
+    if (on === cursorLit) return;
+    cursorLit = on;
+    screen.draw(on);
+  }
+
+  return { root, paper, paperGeo, knob, tickScreen };
 }
 
 async function initRoster(section) {
@@ -1087,7 +1178,7 @@ function bootRoster(section, canvas) {
   scene.environment = studioEnv(renderer);
 
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 40);
-  const { root, paper, paperGeo, knob } = buildDevice();
+  const { root, paper, paperGeo, knob, tickScreen } = buildDevice();
   root.scale.setScalar(MODEL_SCALE);
   scene.add(root);
 
@@ -1225,6 +1316,7 @@ function bootRoster(section, canvas) {
     leanZ += leanZVel * dt;
     leanX += leanXVel * dt;
     knob.rotation.z = t * 0.16;
+    tickScreen(t);
     if (!reduceMotion) bendPaper(paperGeo, leanX, leanZ, t);
     placeCamera();
     renderer.render(scene, camera);
