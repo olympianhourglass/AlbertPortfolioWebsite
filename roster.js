@@ -22,6 +22,8 @@ const KNOB_X = -1.5;
 const KNOB_Y = -0.9;
 const KNOB_R = 0.54;
 const MODEL_SCALE = 0.68;
+const HAAS = '"Neue Haas Display"';
+const MONO = '"SF Mono", ui-monospace, Menlo, monospace';
 
 function roundedRect(w, h, r, cx = 0, cy = 0) {
   const x = cx - w / 2;
@@ -89,7 +91,7 @@ function receiptTexture() {
     g.fillStyle = "#ffffff";
     g.fillRect(0, 0, w, h);
     g.fillStyle = "#111";
-    g.font = '400 56px "Neue Haas Display", sans-serif';
+    g.font = `400 56px ${HAAS}`;
     g.fillText("Debrief", 64, 118);
     g.lineWidth = 2.4;
     g.strokeStyle = "#111";
@@ -97,13 +99,13 @@ function receiptTexture() {
     g.moveTo(64, 148);
     g.lineTo(w - 64, 148);
     g.stroke();
-    g.font = '400 46px "Neue Haas Display", sans-serif';
+    g.font = `400 46px ${HAAS}`;
     g.fillText("5 out of 5 stars", 64, 210);
     g.beginPath();
     g.moveTo(64, 240);
     g.lineTo(w - 64, 240);
     g.stroke();
-    g.font = '400 38px "Neue Haas Display", sans-serif';
+    g.font = `400 38px ${HAAS}`;
     const lines = [
       "Bartholomew was everything I dreame-",
       "d of and more. He bought me flowers,",
@@ -130,7 +132,7 @@ function screenTexture() {
     g.fillStyle = inset;
     g.fillRect(0, 0, w, h);
     g.fillStyle = "#f3f3f3";
-    g.font = '400 88px "SF Mono", ui-monospace, Menlo, monospace';
+    g.font = `400 88px ${MONO}`;
     g.fillText("> print?", 72, 158);
     const yn = "y/n";
     g.fillText(yn, w - 72 - g.measureText(yn).width, 158);
@@ -257,7 +259,7 @@ function faceTexture() {
 
     // Wordmark, right of the dial.
     g.fillStyle = "rgba(118,124,130,0.95)";
-    g.font = '400 48px "Neue Haas Display", sans-serif';
+    g.font = `400 48px ${HAAS}`;
     g.fillText("the roster", w * 0.355, h * 0.915);
 
     // Heart, year, barcode on the dark half.
@@ -275,7 +277,7 @@ function faceTexture() {
     g.bezierCurveTo(16, 1, 10, 1, 10, 6);
     g.fill();
     g.restore();
-    g.font = '400 32px "Neue Haas Display", sans-serif';
+    g.font = `400 32px ${HAAS}`;
     g.fillText("2006", bx + 34, by + 24);
     let x = bx + 112;
     const pattern = [2, 1, 3, 1, 1, 2, 4, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 4, 1, 2, 1, 3, 2, 1, 2];
@@ -283,7 +285,7 @@ function faceTexture() {
       if (i % 2 === 0) g.fillRect(x, by + 4, n * 2.4, 26);
       x += n * 2.4 + 1.5;
     });
-    g.font = '400 22px "Neue Haas Display", sans-serif';
+    g.font = `400 22px ${HAAS}`;
     g.fillText("olympian hourglass", bx + 112, by + 48);
 
     // Contact shadow under the bumper lip.
@@ -338,9 +340,9 @@ function pcbTexture() {
     }
 
     g.fillStyle = "rgba(232, 228, 214, 0.78)";
-    g.font = "600 22px 'SF Mono', ui-monospace, Menlo, monospace";
+    g.font = `400 22px ${MONO}`;
     g.fillText("THE ROSTER  ·  DEBRIEF I/O", 48, 64);
-    g.font = "500 16px 'SF Mono', ui-monospace, Menlo, monospace";
+    g.font = `400 16px ${MONO}`;
     [
       ["U1  STM32H7", 48, 980],
       ["U4  FLASH", 400, 980],
@@ -797,8 +799,8 @@ async function initRoster(section) {
   try {
     await document.fonts.ready;
     await Promise.all([
-      document.fonts.load('400 56px "Neue Haas Display"'),
-      document.fonts.load('400 88px "SF Mono"'),
+      document.fonts.load(`400 56px ${HAAS}`),
+      document.fonts.load(`400 88px ${MONO}`),
     ]);
   } catch (_) {
     /* Draw with fallbacks if the face files are still on their way. */
@@ -866,6 +868,7 @@ function bootRoster(section, canvas) {
   let tyaw = yaw;
   let tpitch = pitch;
   let dragging = false;
+  let held = false;
   let lastX = 0;
   let lastY = 0;
   let running = true;
@@ -895,6 +898,7 @@ function bootRoster(section, canvas) {
 
   canvas.addEventListener("pointerdown", (e) => {
     dragging = true;
+    held = true;
     lastX = e.clientX;
     lastY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
@@ -902,13 +906,19 @@ function bootRoster(section, canvas) {
   canvas.addEventListener("pointermove", (e) => {
     if (!dragging) return;
     tyaw -= (e.clientX - lastX) * 0.005;
-    tpitch = THREE.MathUtils.clamp(tpitch + (e.clientY - lastY) * 0.004, 0.04, 0.7);
+    tpitch = THREE.MathUtils.clamp(
+      tpitch + (e.clientY - lastY) * 0.004,
+      -Math.PI / 2 + 0.08,
+      Math.PI / 2 - 0.08
+    );
     lastX = e.clientX;
     lastY = e.clientY;
   });
-  canvas.addEventListener("pointerup", () => {
+  const endDrag = () => {
     dragging = false;
-  });
+  };
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
 
   const io = new IntersectionObserver(
     (entries) => {
@@ -928,7 +938,7 @@ function bootRoster(section, canvas) {
     if (!running) return;
     clock.getDelta();
     const t = clock.elapsedTime;
-    if (!dragging && !reduceMotion) {
+    if (!dragging && !held && !reduceMotion) {
       tyaw = 0.55 + Math.sin(t * 0.16) * 0.42;
       tpitch = 0.14 + Math.sin(t * 0.13) * 0.05;
     }
