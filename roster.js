@@ -19,7 +19,7 @@ const SCREEN_H = 0.89;
 const SCREEN_X = 0.12;
 const SCREEN_Y = 0.58;
 const KNOB_X = -1.5;
-const KNOB_Y = -0.82;
+const KNOB_Y = -0.58;
 const KNOB_R = 0.54;
 const MODEL_SCALE = 0.68;
 const HAAS = '"Neue Haas Display"';
@@ -336,7 +336,7 @@ function faceTexture() {
     // Wordmark, right of the dial.
     g.fillStyle = "rgba(118,124,130,0.95)";
     g.font = `400 48px ${HAAS}`;
-    g.fillText("the roster", w * 0.355, h * 0.88);
+    g.fillText("the roster", w * 0.355, h * 0.81);
 
     // Heart, year, barcode on the dark half.
     const bx = w * 0.665;
