@@ -1024,15 +1024,15 @@ function buildDevice() {
     emissiveIntensity: 0.1,
   });
   const btnLen = 0.5;
-  const btnFace = 0.15;
+  const btnFace = 0.05;
   const btnOut = 0.055;
   const stadium = roundedRect(btnFace, btnLen, btnFace / 2);
   const btnGeo = new THREE.ExtrudeGeometry(stadium, {
     depth: btnOut,
     bevelEnabled: true,
-    bevelThickness: 0.006,
-    bevelSize: 0.004,
-    bevelSegments: 5,
+    bevelThickness: 0.0025,
+    bevelSize: 0.0015,
+    bevelSegments: 4,
     curveSegments: 28,
   });
   btnGeo.rotateY(Math.PI / 2);
