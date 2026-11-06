@@ -7,11 +7,11 @@ const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").match
 // Measured from the original: face 591×354, almost 50/50 split, bumper ~22px.
 const FACE_W = 5.0;
 const FACE_H = 3.0;
-const B = 0.2;
+const B = 0.175;
 const W = FACE_W + B * 2;
 const H = FACE_H + B * 2;
 const D = 0.94;
-const OUTER_R = 0.64;
+const OUTER_R = 0.615;
 const INNER_R = 0.44;
 const SPLIT = -0.04;
 const SCREEN_W = 3.61;
@@ -19,7 +19,7 @@ const SCREEN_H = 0.89;
 const SCREEN_X = 0.12;
 const SCREEN_Y = 0.58;
 const KNOB_X = -1.5;
-const KNOB_Y = -0.9;
+const KNOB_Y = -0.82;
 const KNOB_R = 0.54;
 const MODEL_SCALE = 0.68;
 const HAAS = '"Neue Haas Display"';
@@ -336,7 +336,7 @@ function faceTexture() {
     // Wordmark, right of the dial.
     g.fillStyle = "rgba(118,124,130,0.95)";
     g.font = `400 48px ${HAAS}`;
-    g.fillText("the roster", w * 0.355, h * 0.915);
+    g.fillText("the roster", w * 0.355, h * 0.88);
 
     // Heart, year, barcode on the dark half.
     const bx = w * 0.665;
