@@ -21,6 +21,7 @@ const SCREEN_Y = 0.58;
 const KNOB_X = -1.5;
 const KNOB_Y = -0.9;
 const KNOB_R = 0.54;
+const MODEL_SCALE = 0.68;
 
 function roundedRect(w, h, r, cx = 0, cy = 0) {
   const x = cx - w / 2;
@@ -88,7 +89,7 @@ function receiptTexture() {
     g.fillStyle = "#ffffff";
     g.fillRect(0, 0, w, h);
     g.fillStyle = "#111";
-    g.font = "400 56px Georgia, 'Times New Roman', serif";
+    g.font = '400 56px "Neue Haas Display", sans-serif';
     g.fillText("Debrief", 64, 118);
     g.lineWidth = 2.4;
     g.strokeStyle = "#111";
@@ -96,13 +97,13 @@ function receiptTexture() {
     g.moveTo(64, 148);
     g.lineTo(w - 64, 148);
     g.stroke();
-    g.font = "400 46px Georgia, 'Times New Roman', serif";
+    g.font = '400 46px "Neue Haas Display", sans-serif';
     g.fillText("5 out of 5 stars", 64, 210);
     g.beginPath();
     g.moveTo(64, 240);
     g.lineTo(w - 64, 240);
     g.stroke();
-    g.font = "400 38px Georgia, 'Times New Roman', serif";
+    g.font = '400 38px "Neue Haas Display", sans-serif';
     const lines = [
       "Bartholomew was everything I dreame-",
       "d of and more. He bought me flowers,",
@@ -129,7 +130,7 @@ function screenTexture() {
     g.fillStyle = inset;
     g.fillRect(0, 0, w, h);
     g.fillStyle = "#f3f3f3";
-    g.font = "500 88px 'SF Mono', ui-monospace, Menlo, monospace";
+    g.font = '400 88px "SF Mono", ui-monospace, Menlo, monospace';
     g.fillText("> print?", 72, 158);
     const yn = "y/n";
     g.fillText(yn, w - 72 - g.measureText(yn).width, 158);
@@ -256,7 +257,7 @@ function faceTexture() {
 
     // Wordmark, right of the dial.
     g.fillStyle = "rgba(118,124,130,0.95)";
-    g.font = "500 48px 'Neue Haas Display', 'Helvetica Neue', sans-serif";
+    g.font = '400 48px "Neue Haas Display", sans-serif';
     g.fillText("the roster", w * 0.355, h * 0.915);
 
     // Heart, year, barcode on the dark half.
@@ -274,7 +275,7 @@ function faceTexture() {
     g.bezierCurveTo(16, 1, 10, 1, 10, 6);
     g.fill();
     g.restore();
-    g.font = "500 32px 'Neue Haas Display', 'Helvetica Neue', sans-serif";
+    g.font = '400 32px "Neue Haas Display", sans-serif';
     g.fillText("2006", bx + 34, by + 24);
     let x = bx + 112;
     const pattern = [2, 1, 3, 1, 1, 2, 4, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 4, 1, 2, 1, 3, 2, 1, 2];
@@ -282,7 +283,7 @@ function faceTexture() {
       if (i % 2 === 0) g.fillRect(x, by + 4, n * 2.4, 26);
       x += n * 2.4 + 1.5;
     });
-    g.font = "500 22px 'Neue Haas Display', 'Helvetica Neue', sans-serif";
+    g.font = '400 22px "Neue Haas Display", sans-serif';
     g.fillText("olympian hourglass", bx + 112, by + 48);
 
     // Contact shadow under the bumper lip.
@@ -795,6 +796,10 @@ async function initRoster(section) {
   if (!canvas) return;
   try {
     await document.fonts.ready;
+    await Promise.all([
+      document.fonts.load('400 56px "Neue Haas Display"'),
+      document.fonts.load('400 88px "SF Mono"'),
+    ]);
   } catch (_) {
     /* Draw with fallbacks if the face files are still on their way. */
   }
@@ -821,6 +826,7 @@ function bootRoster(section, canvas) {
 
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 40);
   const { root, paper, knob } = buildDevice();
+  root.scale.setScalar(MODEL_SCALE);
   scene.add(root);
 
   const key = new THREE.DirectionalLight("#fff7ef", 2.4);
@@ -851,7 +857,7 @@ function bootRoster(section, canvas) {
     new THREE.ShadowMaterial({ opacity: 0.5 })
   );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -H / 2 - 0.02;
+  floor.position.y = -H * MODEL_SCALE / 2 - 0.02;
   floor.receiveShadow = true;
   scene.add(floor);
 
@@ -872,7 +878,7 @@ function bootRoster(section, canvas) {
       Math.sin(e) * r + 0.12,
       Math.cos(yaw) * Math.cos(e) * r
     );
-    camera.lookAt(0, 0.82, 0);
+    camera.lookAt(0, 0.58, 0);
   }
 
   function resize() {
