@@ -42,6 +42,57 @@ function roundedRect(w, h, r, cx = 0, cy = 0) {
   return s;
 }
 
+function roundedRectHole(w, h, r, cx = 0, cy = 0) {
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  r = Math.min(r, w / 2 - 0.001, h / 2 - 0.001);
+  const hole = new THREE.Path();
+  hole.moveTo(x + r, y);
+  hole.absarc(x + r, y + r, r, -Math.PI / 2, Math.PI, true);
+  hole.lineTo(x, y + h - r);
+  hole.absarc(x + r, y + h - r, r, Math.PI, Math.PI / 2, true);
+  hole.lineTo(x + w - r, y + h);
+  hole.absarc(x + w - r, y + h - r, r, Math.PI / 2, 0, true);
+  hole.lineTo(x + w, y + r);
+  hole.absarc(x + w - r, y + r, r, 0, -Math.PI / 2, true);
+  return hole;
+}
+
+function extrudeRing(outerW, outerH, innerW, innerH, outerR, innerR, depth, mat, bevel = 0.002) {
+  const shape = roundedRect(outerW, outerH, outerR);
+  shape.holes.push(roundedRectHole(innerW, innerH, innerR));
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: bevel > 0,
+    bevelThickness: bevel,
+    bevelSize: bevel,
+    bevelSegments: 2,
+    curveSegments: 24,
+  });
+  geo.translate(0, 0, -depth / 2);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+function extrudePlate(w, h, r, depth, mat, bevel = 0.002) {
+  const geo = new THREE.ExtrudeGeometry(roundedRect(w, h, r), {
+    depth,
+    bevelEnabled: bevel > 0,
+    bevelThickness: bevel,
+    bevelSize: bevel * 0.8,
+    bevelSegments: 2,
+    curveSegments: 24,
+  });
+  geo.translate(0, 0, -depth / 2);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 function shapeMesh(shape, mat) {
   const geo = new THREE.ShapeGeometry(shape, 48);
   geo.computeBoundingBox();
@@ -912,10 +963,15 @@ function buildDevice() {
   body.receiveShadow = true;
   root.add(body);
 
+  const winW = SCREEN_W + 0.084;
+  const winH = SCREEN_H + 0.084;
+  const winR = 0.048;
   const faceMap = faceTexture();
   faceMap.anisotropy = 8;
+  const faceShape = roundedRect(FACE_W, FACE_H, INNER_R);
+  faceShape.holes.push(roundedRectHole(winW, winH, winR, SCREEN_X, SCREEN_Y));
   const face = shapeMesh(
-    roundedRect(FACE_W, FACE_H, INNER_R),
+    faceShape,
     new THREE.MeshPhysicalMaterial({
       map: faceMap,
       roughness: 0.18,
@@ -934,60 +990,108 @@ function buildDevice() {
   face.receiveShadow = true;
   root.add(face);
 
-  const well = shapeMesh(
-    roundedRect(SCREEN_W + 0.05, SCREEN_H + 0.05, 0.035),
-    new THREE.MeshStandardMaterial({ color: "#07080c", roughness: 0.42, metalness: 0.18 })
-  );
-  well.position.set(SCREEN_X, SCREEN_Y, zFront + 0.01);
-  well.renderOrder = 2;
-  root.add(well);
-
   const screen = makeScreenDisplay();
+  const plastic = new THREE.MeshStandardMaterial({
+    color: "#14161c",
+    roughness: 0.56,
+    metalness: 0.16,
+    envMapIntensity: 0.35,
+    side: THREE.DoubleSide,
+  });
+  const rubber = new THREE.MeshStandardMaterial({
+    color: "#1b1d22",
+    roughness: 0.8,
+    metalness: 0.05,
+    envMapIntensity: 0.2,
+    side: THREE.DoubleSide,
+  });
+  const seam = new THREE.MeshStandardMaterial({
+    color: "#050608",
+    roughness: 0.9,
+    metalness: 0.04,
+    side: THREE.DoubleSide,
+  });
+
+  const module = new THREE.Group();
+  const walls = extrudeRing(winW - 0.008, winH - 0.008, SCREEN_W + 0.02, SCREEN_H + 0.02, winR - 0.006, 0.032, 0.078, plastic, 0.002);
+  walls.position.z = -0.032;
+  module.add(walls);
+
+  const floor = extrudePlate(SCREEN_W + 0.03, SCREEN_H + 0.03, 0.034, 0.01, plastic, 0.001);
+  floor.position.z = -0.074;
+  module.add(floor);
+
   const lcd = shapeMesh(
     roundedRect(SCREEN_W, SCREEN_H, 0.025),
     new THREE.MeshBasicMaterial({
       map: screen.texture,
       toneMapped: false,
+      depthWrite: true,
     })
   );
-  lcd.position.set(SCREEN_X, SCREEN_Y, zFront + 0.016);
+  lcd.position.z = -0.044;
   lcd.renderOrder = 3;
-  root.add(lcd);
+  module.add(lcd);
 
   const polarizer = shapeMesh(
-    roundedRect(SCREEN_W, SCREEN_H, 0.03),
+    roundedRect(SCREEN_W + 0.006, SCREEN_H + 0.006, 0.028),
     new THREE.MeshPhysicalMaterial({
-      color: "#17304c",
-      metalness: 0.05,
-      roughness: 0.18,
+      color: "#1a3148",
+      metalness: 0.04,
+      roughness: 0.22,
+      transparent: true,
+      opacity: 0.08,
+      envMapIntensity: 0.25,
+      depthWrite: false,
+    })
+  );
+  polarizer.position.z = -0.036;
+  polarizer.renderOrder = 4;
+  module.add(polarizer);
+
+  const cellGap = extrudeRing(SCREEN_W + 0.014, SCREEN_H + 0.014, SCREEN_W - 0.006, SCREEN_H - 0.006, 0.03, 0.022, 0.005, seam, 0);
+  cellGap.position.z = -0.028;
+  module.add(cellGap);
+
+  const glass = extrudePlate(
+    SCREEN_W + 0.02,
+    SCREEN_H + 0.02,
+    0.032,
+    0.016,
+    new THREE.MeshPhysicalMaterial({
+      color: "#c8daf0",
+      metalness: 0.06,
+      roughness: 0.04,
       transparent: true,
       opacity: 0.16,
-      envMapIntensity: 0.35,
-    })
-  );
-  polarizer.position.set(SCREEN_X, SCREEN_Y, zFront + 0.019);
-  polarizer.renderOrder = 4;
-  root.add(polarizer);
-
-  const glass = shapeMesh(
-    roundedRect(SCREEN_W + 0.012, SCREEN_H + 0.012, 0.04),
-    new THREE.MeshPhysicalMaterial({
-      color: "#c5dcff",
-      metalness: 0.04,
-      roughness: 0.03,
-      transparent: true,
-      opacity: 0.12,
       clearcoat: 1,
       clearcoatRoughness: 0.03,
-      envMapIntensity: 1.15,
-    })
+      envMapIntensity: 1.05,
+      depthWrite: false,
+    }),
+    0.0024
   );
-  glass.position.set(SCREEN_X, SCREEN_Y, zFront + 0.023);
-  glass.renderOrder = 5;
-  root.add(glass);
+  glass.position.z = -0.008;
+  glass.renderOrder = 6;
+  module.add(glass);
 
-  const screenGlow = new THREE.PointLight("#5aa8ff", 1.05, 2.15);
-  screenGlow.position.set(SCREEN_X, SCREEN_Y, zFront + 0.32);
+  const gasket = extrudeRing(SCREEN_W + 0.066, SCREEN_H + 0.066, SCREEN_W + 0.006, SCREEN_H + 0.006, 0.044, 0.028, 0.014, rubber, 0.0022);
+  gasket.position.z = 0.008;
+  module.add(gasket);
+
+  const inseam = extrudeRing(winW + 0.006, winH + 0.006, SCREEN_W + 0.068, SCREEN_H + 0.068, winR + 0.004, 0.045, 0.008, seam, 0);
+  inseam.position.z = 0.001;
+  module.add(inseam);
+
+  const groove = extrudeRing(SCREEN_W + 0.05, SCREEN_H + 0.05, SCREEN_W + 0.04, SCREEN_H + 0.04, 0.038, 0.034, 0.0032, seam, 0);
+  groove.position.z = 0.0155;
+  module.add(groove);
+
+  module.position.set(SCREEN_X, SCREEN_Y, zFront + 0.006);
+  root.add(module);
+
+  const screenGlow = new THREE.PointLight("#5aa8ff", 0.95, 2.05);
+  screenGlow.position.set(SCREEN_X, SCREEN_Y, zFront + 0.22);
   root.add(screenGlow);
 
   const paperW = SCREEN_W * 0.92;
