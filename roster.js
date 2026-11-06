@@ -1010,23 +1010,45 @@ function buildDevice() {
       g.stroke();
     }
   }, 256, 512);
+  brushRough.colorSpace = THREE.NoColorSpace;
   const steel = new THREE.MeshPhysicalMaterial({
-    color: "#d5d8dc",
+    color: "#e8ebef",
     map: brush,
     roughnessMap: brushRough,
-    metalness: 0.96,
-    roughness: 0.22,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.18,
-    envMapIntensity: 1.45,
+    metalness: 0.74,
+    roughness: 0.32,
+    clearcoat: 0.72,
+    clearcoatRoughness: 0.12,
+    envMapIntensity: 0.62,
+    emissive: "#6e737a",
+    emissiveIntensity: 0.1,
   });
-  const btnGeo = new RoundedBoxGeometry(0.034, 0.66, 0.078, 5, 0.015);
-  [0.4, -0.4].forEach((y) => {
+  const btnLen = 0.5;
+  const btnFace = 0.15;
+  const btnOut = 0.055;
+  const stadium = roundedRect(btnFace, btnLen, btnFace / 2);
+  const btnGeo = new THREE.ExtrudeGeometry(stadium, {
+    depth: btnOut,
+    bevelEnabled: true,
+    bevelThickness: 0.006,
+    bevelSize: 0.004,
+    bevelSegments: 5,
+    curveSegments: 28,
+  });
+  btnGeo.rotateY(Math.PI / 2);
+  btnGeo.center();
+  btnGeo.computeVertexNormals();
+  const yLow = -H / 2 + OUTER_R + 0.2 + btnLen / 2;
+  const yGap = 0.14;
+  [yLow + btnLen + yGap, yLow].forEach((y) => {
     const btn = new THREE.Mesh(btnGeo, steel);
-    btn.position.set(W / 2 + 0.012, y, 0);
+    btn.position.set(W / 2 + btnOut / 2 - 0.008, y, 0);
     btn.castShadow = true;
     root.add(btn);
   });
+  const glint = new THREE.PointLight("#f4f1ec", 1.2, 1.55);
+  glint.position.set(W / 2 + 0.38, yLow + btnLen / 2 + yGap / 2, 0.42);
+  root.add(glint);
 
   return { root, paper, paperGeo, knob };
 }
