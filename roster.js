@@ -118,7 +118,23 @@ function receiptTexture() {
       g.fillRect(Math.random() * w, Math.random() * h, 2, 1);
     }
     g.globalAlpha = 1;
+    // Cut edge at the top of the slip.
+    g.fillStyle = "rgba(0,0,0,0.06)";
+    for (let x = 0; x < w; x += 7) g.fillRect(x, 0, 4, 5);
   }, 1024, 768);
+}
+
+function paperBackTexture() {
+  return canvasTex((g, w, h) => {
+    g.fillStyle = "#f3f0ea";
+    g.fillRect(0, 0, w, h);
+    g.globalAlpha = 0.05;
+    for (let i = 0; i < 900; i++) {
+      g.fillStyle = Math.random() > 0.5 ? "#000" : "#fff";
+      g.fillRect(Math.random() * w, Math.random() * h, 2, 1);
+    }
+    g.globalAlpha = 1;
+  }, 256, 512);
 }
 
 function screenTexture() {
@@ -575,6 +591,102 @@ function shellMaterial() {
   });
 }
 
+function rubberMat() {
+  return new THREE.MeshPhysicalMaterial({
+    color: "#141516",
+    roughness: 0.74,
+    metalness: 0.03,
+    clearcoat: 0.12,
+    clearcoatRoughness: 0.55,
+    envMapIntensity: 0.35,
+  });
+}
+
+function buildPrintMouth(paperW) {
+  const g = new THREE.Group();
+  const rubber = rubberMat();
+  const hard = new THREE.MeshStandardMaterial({
+    color: "#0c0d0e",
+    roughness: 0.48,
+    metalness: 0.1,
+  });
+
+  const housing = new THREE.Mesh(
+    new RoundedBoxGeometry(paperW + 0.32, 0.08, 0.3, 2, 0.035),
+    hard
+  );
+  housing.position.y = -0.02;
+  g.add(housing);
+
+  const lipGeo = new THREE.CylinderGeometry(0.05, 0.05, paperW + 0.1, 24);
+  const frontLip = new THREE.Mesh(lipGeo, rubber);
+  frontLip.rotation.z = Math.PI / 2;
+  frontLip.scale.set(1, 1, 0.5);
+  frontLip.position.set(0, 0.034, 0.048);
+  g.add(frontLip);
+  const rearLip = new THREE.Mesh(lipGeo, rubber);
+  rearLip.rotation.z = Math.PI / 2;
+  rearLip.scale.set(1, 1, 0.5);
+  rearLip.position.set(0, 0.034, -0.048);
+  g.add(rearLip);
+
+  const gasket = new THREE.Mesh(
+    new THREE.BoxGeometry(paperW + 0.06, 0.022, 0.09),
+    rubber
+  );
+  gasket.position.y = 0.058;
+  g.add(gasket);
+
+  const roller = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, paperW * 0.92, 20),
+    rubber
+  );
+  roller.rotation.z = Math.PI / 2;
+  roller.position.set(0, -0.02, 0);
+  g.add(roller);
+
+  const cheekGeo = new THREE.BoxGeometry(0.07, 0.12, 0.22);
+  [-1, 1].forEach((side) => {
+    const cheek = new THREE.Mesh(cheekGeo, hard);
+    cheek.position.set(side * (paperW / 2 + 0.08), 0.01, 0);
+    g.add(cheek);
+  });
+
+  return g;
+}
+
+function makePaperGeo(w, h, thick, segs) {
+  const geo = new THREE.BoxGeometry(w, h, thick, 1, segs, 1);
+  geo.translate(0, h / 2, 0);
+  geo.userData.rest = new Float32Array(geo.attributes.position.array);
+  geo.userData.height = h;
+  return geo;
+}
+
+function bendPaper(geo, leanX, leanZ, time) {
+  const rest = geo.userData.rest;
+  const h = geo.userData.height;
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x0 = rest[i * 3];
+    const y0 = rest[i * 3 + 1];
+    const z0 = rest[i * 3 + 2];
+    const t = THREE.MathUtils.clamp(y0 / h, 0, 1);
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const idle = 0.035 * t2 + 0.012 * t * Math.sin(t * Math.PI);
+    const flutter = reduceMotion ? 0 : 0.01 * t2 * Math.sin(time * 2.1 + x0 * 3.4);
+    pos.setXYZ(
+      i,
+      x0 + leanZ * t3 * h * 1.15,
+      y0,
+      z0 + idle + flutter - leanX * t3 * h * 1.05
+    );
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+
 function bumperGeometry() {
   const shape = roundedRect(W, H, OUTER_R);
   const hole = new THREE.Path();
@@ -705,47 +817,45 @@ function buildDevice() {
   glass.renderOrder = 4;
   root.add(glass);
 
-  const slot = new THREE.Mesh(
-    new THREE.BoxGeometry(SCREEN_W * 0.98, 0.055, 0.16),
-    new THREE.MeshStandardMaterial({ color: "#050506", roughness: 0.7 })
-  );
-  slot.position.set(SCREEN_X, H / 2 - 0.155, 0.18);
-  root.add(slot);
+  const paperW = SCREEN_W * 0.92;
+  const paperH = 1.58;
+  const paperT = 0.044;
+  const mouth = buildPrintMouth(paperW);
+  mouth.position.set(SCREEN_X, H / 2 + 0.02, 0.04);
+  root.add(mouth);
 
-  const paperW = SCREEN_W * 0.99;
-  const paperH = 1.62;
-  const paperGeo = new THREE.PlaneGeometry(paperW, paperH, 1, 20);
-  const ppos = paperGeo.attributes.position;
-  for (let i = 0; i < ppos.count; i++) {
-    const y = ppos.getY(i);
-    const t = (y + paperH / 2) / paperH;
-    ppos.setZ(i, 0.008 * t + 0.02 * t * t);
-  }
-  paperGeo.computeVertexNormals();
-  const paper = new THREE.Mesh(
-    paperGeo,
-    new THREE.MeshBasicMaterial({
-      map: receiptTexture(),
-    })
-  );
-  paper.position.set(SCREEN_X, H / 2 + paperH / 2 - 0.16, zFront + 0.04);
+  const paperGeo = makePaperGeo(paperW, paperH, paperT, 28);
+  const paperEdge = new THREE.MeshStandardMaterial({
+    color: "#efebe3",
+    roughness: 0.92,
+    metalness: 0,
+    envMapIntensity: 0.04,
+  });
+  const paperFront = new THREE.MeshStandardMaterial({
+    map: receiptTexture(),
+    roughness: 0.9,
+    metalness: 0,
+    envMapIntensity: 0.05,
+  });
+  const paperRear = new THREE.MeshStandardMaterial({
+    map: paperBackTexture(),
+    roughness: 0.94,
+    metalness: 0,
+    envMapIntensity: 0.04,
+  });
+  const paper = new THREE.Mesh(paperGeo, [
+    paperEdge,
+    paperEdge,
+    paperEdge,
+    paperEdge,
+    paperFront,
+    paperRear,
+  ]);
   paper.castShadow = true;
+  paper.receiveShadow = true;
+  paper.position.set(SCREEN_X, H / 2 + 0.04, 0.04);
   root.add(paper);
-  const paperBack = new THREE.Mesh(
-    paperGeo,
-    new THREE.MeshStandardMaterial({ color: "#f4f4f4", roughness: 0.95, metalness: 0, envMapIntensity: 0.04 })
-  );
-  paperBack.rotation.y = Math.PI;
-  paperBack.position.copy(paper.position);
-  paperBack.position.z -= 0.004;
-  root.add(paperBack);
-
-  const paperShadow = new THREE.Mesh(
-    new THREE.PlaneGeometry(paperW * 1.02, 0.22),
-    new THREE.MeshBasicMaterial({ color: "#000", transparent: true, opacity: 0.22 })
-  );
-  paperShadow.position.set(SCREEN_X, H / 2 - 0.02, zFront + 0.03);
-  root.add(paperShadow);
+  bendPaper(paperGeo, 0, 0, 0);
 
   const knob = new THREE.Group();
   const alum = new THREE.MeshPhysicalMaterial({
@@ -790,7 +900,7 @@ function buildDevice() {
     root.add(btn);
   });
 
-  return { root, paper, knob };
+  return { root, paper, paperGeo, knob };
 }
 
 async function initRoster(section) {
@@ -827,7 +937,7 @@ function bootRoster(section, canvas) {
   scene.environment = studioEnv(renderer);
 
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 40);
-  const { root, paper, knob } = buildDevice();
+  const { root, paper, paperGeo, knob } = buildDevice();
   root.scale.setScalar(MODEL_SCALE);
   scene.add(root);
 
@@ -933,10 +1043,18 @@ function bootRoster(section, canvas) {
   io.observe(section);
 
   const clock = new THREE.Clock();
+  let lastYaw = yaw;
+  let lastPitch = pitch;
+  let yawVel = 0;
+  let pitchVel = 0;
+  let leanX = 0;
+  let leanZ = 0;
+  let leanXVel = 0;
+  let leanZVel = 0;
   function loop() {
     requestAnimationFrame(loop);
     if (!running) return;
-    clock.getDelta();
+    const dt = Math.min(clock.getDelta(), 0.05) || 0.016;
     const t = clock.elapsedTime;
     if (!dragging && !held && !reduceMotion) {
       tyaw = 0.55 + Math.sin(t * 0.16) * 0.42;
@@ -944,8 +1062,20 @@ function bootRoster(section, canvas) {
     }
     yaw += (tyaw - yaw) * 0.08;
     pitch += (tpitch - pitch) * 0.08;
+    yawVel += ((yaw - lastYaw) / dt - yawVel) * 0.4;
+    pitchVel += ((pitch - lastPitch) / dt - pitchVel) * 0.4;
+    lastYaw = yaw;
+    lastPitch = pitch;
+    const targetZ = THREE.MathUtils.clamp(-yawVel * 0.14, -0.2, 0.2);
+    const targetX = THREE.MathUtils.clamp(pitchVel * 0.12, -0.16, 0.16);
+    const stiff = 26;
+    const damp = 6.5;
+    leanZVel += ((targetZ - leanZ) * stiff - leanZVel * damp) * dt;
+    leanXVel += ((targetX - leanX) * stiff - leanXVel * damp) * dt;
+    leanZ += leanZVel * dt;
+    leanX += leanXVel * dt;
     knob.rotation.z = t * 0.16;
-    paper.rotation.z = reduceMotion ? 0 : Math.sin(t * 0.32) * 0.01;
+    if (!reduceMotion) bendPaper(paperGeo, leanX, leanZ, t);
     placeCamera();
     renderer.render(scene, camera);
   }
